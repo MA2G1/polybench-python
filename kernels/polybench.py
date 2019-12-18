@@ -13,6 +13,19 @@
 # limitations under the License.
 
 """This module offers the base Polybench class to be used by kernel implementations."""
+from enum import Enum, auto
+
+
+class DatasetSize(Enum):
+    """Define the possible values for selecting dataset sizes.
+
+    Instead of manually managing the values of this enumeration we let the python interpreter initialize them.
+    """
+    MINI = auto()
+    SMALL = auto()
+    MEDIUM = auto()
+    LARGE = auto()
+    EXTRA_LARGE = auto()
 
 
 class Polybench:
@@ -33,7 +46,7 @@ class Polybench:
         """
         raise RuntimeError('Abstract classes cannot be instantiated.')
 
-    def _create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0):
+    def _create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array.
 
         This method assumes that the parameters were previously validated (in the create_array method)
@@ -49,7 +62,7 @@ class Polybench:
             # Generate lists with unique sizes per dimension
             return [self.create_array(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
-    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0):
+    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Create a new array with a specified size.
 
         Parameters:
@@ -115,13 +128,6 @@ class Polybench:
         """
         raise NotImplementedError('Initialize array not implemented')
 
-    def kernel(self):
-        """Implements the kernel to be benchmarked.
-
-        This method MUST be overridden by subclasses.
-        """
-        raise NotImplementedError('Kernel not implemented')
-
     def print_array_custom(self, array: list):
         """Prints the benchmark array using the same format as in Polybench/C.
 
@@ -142,3 +148,26 @@ class Polybench:
         else:
             self.print_array_custom(array)
         print('===END   DUMP_ARRAYS===')
+
+    def run(self):
+        """Prepares the environment for running a kernel, executes it and shows the result.
+
+        DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!
+
+        This method is akin to the main() function found in Polybench/C.
+        Common tasks for the benchmarks are performed by this method such as:
+            - Preparing instruments (control process priority, CPU scheduler [when available], etc.)
+            - Performing timing operations
+            - Print the benchmark's output (timing, kernel, etc.)
+        """
+        self.run_benchmark()
+
+    def run_benchmark(self):
+        """Implements the kernel to be benchmarked.
+
+        This method MUST be overridden by subclasses.
+
+        This method should declare the data structures required for running the kernel in a similar manner as done in
+        the main() function of Polybench/C.
+        """
+        raise NotImplementedError('Kernel not implemented')
