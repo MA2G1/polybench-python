@@ -13,3 +13,5 @@
 # limitations under the License.
 
 """<replace_with_module_description>"""
+
+from kernels.datamining.correlation.correlation import Correlation

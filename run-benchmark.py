@@ -19,26 +19,14 @@ makefiles or using configuration scripts for generating and using those.
 This program allows to use only the Python runtime for everything the user should need when evaluating or implementing
 the different kernels."""
 
-from kernels import kernel_categories
-from kernels import kernel_implementations
+from kernels import kernel_classes
 from kernels.polybench import Polybench
-
-
-class CustomBench(Polybench):
-
-    def __init__(self):
-        return
-
-    def kernel(self):
-        pass
-
-    def print_array_custom(self, array: list):
-        pass
-
+import importlib
+import sys
 
 if __name__ == '__main__':
-    p = CustomBench()
-    arr = p.create_array(1, [1])
-    print(arr)
-    print(f'Available kernel categories:      {kernel_categories}')
-    print(f'Available kernel implementations: {kernel_implementations}')
+    print(kernel_classes)
+
+    #for impl in kernel_classes:
+    #    print(Polybench(impl).run())
+    #    importlib.reload(impl)

@@ -12,51 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""<replace_with_module_description>"""
+"""Perform package discovery and module importing for retrieving a list of all available kernels."""
 
 
-from setuptools import find_packages
-
-# Find packages relative to this file's location in the hierarchy.
-_available_packages = find_packages(__name__)
-
-# Separate intermediate packages (categories) from kernel implementations.
-# Note: we can consider all available packages as categories and then the innermost ones are the actual implementations.
-kernel_categories = set()
-kernel_implementations = set()
-
-# Compare the permutations of the package names for searching unique packages
-for candidate in _available_packages:
-    # Perform a small optimization: skip checking candidates which are already categorized
-    if candidate in kernel_categories:
-        continue
-
-    is_category = False
-    for package in _available_packages:
-        # Test whether a package name is a category or not. Since we are iterating over the full set, it will happen
-        # that a package will be compared against itself.
-        # This implementation is not very efficient, but works.
-        if candidate != package and candidate in package:
-            # We possibly found a category...
-            # At this point, the two strings match something like ["cat1.subcat1" in "cat1.subcat1xx"]. The problem is
-            # that it may not be a category, but rather a similar name. Check if it has a dot on its name or not.
-            candidate_len = len(candidate)
-            package_len = len(package)
-            if package_len > candidate_len:
-                # When we have a dot (.) as the next character in the package name, we know the candidate is part of the
-                # subpackage's name, effectively making a category.
-                if package[candidate_len] == '.':
-                    is_category = True
-            else:
-                is_category = True
-
-    if is_category:
-        kernel_categories.add(candidate)
-    else:
-        kernel_implementations.add(candidate)
+import pkgutil
+from kernels.polybench import Polybench
 
 
-# Now we should have the categories and implementations.
-# Perform a sort operation for better user readability.
-kernel_categories = sorted(kernel_categories)
-kernel_implementations = sorted(kernel_implementations)
+def __build_module_list__() -> (set, set):
+    from pathlib import Path
+    # Prepare the function result.
+    candidates = set()
+
+    # For some reason pkgutil.walk_packages() does not recurse from the "kernels" package. Use the parent directory to
+    # make it work as expected and filter out the results to include only the packages from the "kernels" package.
+    from_path = [Path(__path__[0]).parent]
+
+    # See: https://docs.python.org/3/library/pkgutil.html#pkgutil.ModuleInfo
+    # See: https://docs.python.org/3/library/pkgutil.html#pkgutil.walk_packages
+    for moduleInfo_finder, moduleInfo_name, moduleInfo_ispackage in pkgutil.walk_packages(from_path):
+        # Exclude all names not starting with "kernels."
+        if str(moduleInfo_name).startswith("kernels."):
+            # Include only modules, not packages.
+            if not moduleInfo_ispackage:
+                candidates.add(moduleInfo_name)
+
+    # The algorithm added the module "polybench" which defines the abstract class Polybench. Remove it from the modules
+    # set as it is not interesting to have here.
+    candidates.remove('kernels.polybench')
+    # Exploit the side effect of "walk_packages()" (package and module loading) and invoke "__subclasses__()"
+    # See: https://docs.python.org/3/library/stdtypes.html#class.__subclasses__
+    return sorted(candidates), Polybench.__subclasses__()
+
+
+# WARNING: unused "kernel_modules"
+kernel_modules, kernel_classes = __build_module_list__()
