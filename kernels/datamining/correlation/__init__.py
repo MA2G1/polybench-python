@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""<replace_with_module_description>"""
+"""Import the kernel on package load."""
 
 from kernels.datamining.correlation.correlation import Correlation

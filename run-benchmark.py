@@ -25,8 +25,9 @@ import importlib
 import sys
 
 if __name__ == '__main__':
-    print(kernel_classes)
+    if len(kernel_classes) < 1:
+        NotImplementedError("There are no benchmarks to run.")
 
-    #for impl in kernel_classes:
-    #    print(Polybench(impl).run())
-    #    importlib.reload(impl)
+    print("Available benchmarks:")
+    for impl in kernel_classes:
+        print(f'  {impl.__module__}.{impl.__name__}')

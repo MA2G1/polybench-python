@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""<replace_with_module_description>"""
+"""Implements the correlation kernel in a Polybench class."""
 
 from kernels.polybench import Polybench
 from kernels.polybench import DatasetSize
@@ -47,4 +47,4 @@ class Correlation(Polybench):
         pass
 
     def run_benchmark(self):
-        pass
+        print('Correlation')

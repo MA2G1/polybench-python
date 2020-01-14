@@ -124,7 +124,7 @@ class Polybench:
 
         Implement this method when requiring a special array initialization.
         If an array is to be initialized with the same value for all of its elements, use the "initialization_value"
-        parameter of the create_array method.
+        parameter of the create_array method instead.
         """
         raise NotImplementedError('Initialize array not implemented')
 
