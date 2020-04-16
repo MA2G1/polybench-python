@@ -27,55 +27,72 @@ import argparse
 from pathlib import Path
 import os.path
 import shutil
-from string import capwords
+
 
 if __name__ == '__main__':
 
     # Define some "constant" references
     kernel_path = 'kernels'
-    template_file = 'util/template-benchmark.py'
+    template_benchmark_file = 'util/template-benchmark.py'
     template_init_file = 'util/template-package-init.py'
 
-    # Define some "variable" references
-    benchmark_name = None
-    category_name = None
+    def parse_command_line() -> {
+        "benchmark_name": str,
+        "category": str
+    }:
+        """
+        Parse command line arguments and normalize the results.
 
-    # This function parses the command line arguments and returns the decoded parameters.
-    # The returning order is defined as follows: [benchmark, category]
-    #
-    # The parameter "category" will be normalized to use slashes.
-    def parse_command_line() -> [str, str]:
+        :return: A dictionary with the decoded parameters.
+        :rtype: dict[str, str]
+
+        The possible return values for the dictionary are listed below:
+            - **benchmark_name** [param: *--name*]: the name for the benchmark.
+            - **category** [param: *--category*]: the name for the category. This value will be normalized to use
+            slashes as separators.
+        """
         parser = argparse.ArgumentParser(description='Generate a template for implementing a new benchmark.',
                                          epilog='All benchmarks are created under the "kernels" folder.')
         parser.add_argument('--name', '-N', nargs=1, type=str, required=True,
-                            metavar='<benchmark_name>',
-                            help='The name of the benchmark')
+                            metavar='<BenchmarkName>',
+                            help='The name of the benchmark using PascalCase.')
         parser.add_argument('--category', '-C', nargs=1, type=str,
                             metavar='<category[.subcategory] | category[/subcategory]>',
                             help='The category name. This will place the benchmark template into a package, generating '
                                  'all required intermediate files. Subcategories can be separated either with a dot or '
-                                 'a slash. Example: datamining/correlation and datamining.correlation are valid.')
-
-        # The parsing will fail on error.
+                                 'a slash. Example: datamining/correlation and datamining.correlation are valid. '
+                                 'Category names are expected to be in lower case and will be internally converted.')
+        # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
         # Process the benchmark name
-        benchmark = args.name[0]
+        name = str(args.name[0])
 
         # Process the category name. Since the category is optional, we need to check if it exists first
         category = None
         if not (args.category is None):
-            category = args.category[0].replace('.', '/')
+            category = str(args.category[0]).replace('.', '/').lower()
 
-        return [benchmark, category]
+        return {"benchmark_name": name, "category": category}
 
-    # Create the full package structure given the category name. This operation creates all of the required files and
-    # directories for building the package starting from the "kernel_path".
-    # This function returns the full path for the package.
     def create_package_structure(category: str) -> str:
-        target_path = None
+        """
+        Create a valid python package structure (of files and folders) given a category name.
+
+        :param str category: The category name for which to create the package structure. If this parameter is set to
+            "None" then no actions will be performed by this function.
+        :return: The full path for the created package relative to the running script's location. If "None" was passed
+            as argument, the returned path will be the directory specified by "kernel_path".
+        :rtype str:
+
+        Notes
+        -----
+        The package structure for Polybench/Python is always relative to the path specified by "kernel_path". This
+        implies that package structures will always be inside that path.
+        """
+        target_path = kernel_path
         if not (category is None):
-            target_path = kernel_path + '/' + category
+            target_path += '/' + category
             # Create, if necessary, all of the directories in the package path
             Path(target_path).mkdir(parents=True, exist_ok=True)
 
@@ -90,10 +107,21 @@ if __name__ == '__main__':
 
         return target_path
 
-    # Create the required files for properly importing the benchmark from the package.
-    # The files include a custom "__init__.py" with the imported benchmark and the "benchmark.py" file implementing, as
-    # a template, the "Benchmark" class.
-    def create_benchmark(directory: str, benchmark: str):
+    def create_benchmark(directory: str, benchmark: str) -> None:
+        """
+        Create a new benchmark template and its associated files.
+
+        While creating the benchmark, Python naming conventions will be respected. Class names must be capitalized and
+        package names should be lower case.
+
+        :param str directory: The directory where the benchmark will be created.
+        :param str benchmark: The name of the benchmark. This name will be modified for fitting Python's naming
+            conventions.
+        """
+        # Blindly capitalize the benchmark name...
+        benchmark_capitalized = benchmark[0].upper() + benchmark[1:]    # ... for using as class name
+        benchmark_lowered = benchmark.lower()   # ... for using in package and file names
+
         # Check benchmark location for the existence of an "__init__.py" file
         init_file = directory + '/__init__.py'
         if not os.path.isfile(init_file):
@@ -102,24 +130,26 @@ if __name__ == '__main__':
             with open(template_init_file) as f:
                 contents = f.read()
                 # Append: from path.to.package.benchmark import Benchmark
-                contents += f'\nfrom {directory.replace("/", ".")}.{benchmark} import {capwords(benchmark)}\n'
+                contents += f'\nfrom {directory.replace("/", ".")}.{benchmark_lowered} import {benchmark_capitalized}\n'
                 # Save the new init file
                 with open(init_file, 'x') as g:
                     g.write(contents)
 
-        target_file = directory + '/' + benchmark + '.py'
+        target_file = directory + '/' + benchmark_lowered + '.py'
         # Check benchmark location for the existence of the benchmark. If a previous benchmark exists it will be kept,
         # otherwise a new benchmark template will be created with the correct benchmark's name.
         if not os.path.isfile(target_file):
-            with open(template_file) as f:
+            with open(template_benchmark_file) as f:
                 contents = f.read()
                 with open(target_file, 'x') as g:
-                    contents = contents.replace('TemplateClass', capwords(benchmark))
+                    contents = contents.replace('TemplateClass', benchmark_capitalized)
                     g.write(contents)
 
 
     # Parse the commandline and obtain the required parameters
-    benchmark_name, category_name = parse_command_line()
+    parameters = parse_command_line()
+    benchmark_name = parameters["benchmark_name"]
+    category_name = parameters["category"]
 
     # Build the directory structure represented by the category
     package_path = create_package_structure(category_name)
