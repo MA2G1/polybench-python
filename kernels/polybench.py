@@ -33,23 +33,33 @@ class Polybench:
 
     This class is not meant to be instantiated (abstract class) but rather each kernel must inherit from it and override
     the following methods:
-        __init__()
-        kernel()
-        print_array_custom()
+        - __init__()
+        - kernel()
+        - print_array_custom()
     """
 
     def __init__(self):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
-        This method MUST be overridden by subclasses.
+        This method **MUST** be overridden by subclasses.
         """
         raise RuntimeError('Abstract classes cannot be instantiated.')
 
-    def _create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
+    def _create_array_rec(self, dimensions: int, sizes: list[int], initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array.
 
-        This method assumes that the parameters were previously validated (in the create_array method)
+        This method assumes that the parameters were previously validated (in the create_array method).
+
+        :param int dimensions: the number of dimensions to create. One dimension creates a list, two a matrix and so on.
+        :param list[int] sizes: a list of integers, each one representing the size of a dimension. The first element of the
+            list represents the size of the first dimension, the second element the size of the second dimension and so
+            on. If this list is smaller than the actual number of dimensions then the last size read is used for the
+            remaining dimensions.
+        :param int initialization_value: (optional; default = 0) the value to use for initializing the arrays during
+            their creation.
+        :return: a list representing an array of N dimensions.
+        :rtype list:
         """
         if dimensions == 1:
             # Just create a list with as many zeros as specified in sizes[0]
@@ -57,22 +67,24 @@ class Polybench:
 
         if len(sizes) == 1:
             # Generate lists of the same size per dimension
-            return [self.create_array(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
+            return [self._create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
         else:
             # Generate lists with unique sizes per dimension
-            return [self.create_array(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
+            return [self._create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
-    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
-        """Create a new array with a specified size.
+    def create_array(self, dimensions: int, sizes: list[int], initialization_value: int = 0) -> list:
+        """
+        Create a new array with a specified size.
 
-        Parameters:
-            dimensions: specifies the number of dimensions of the array.
-            sizes: allows to specify the number of elements for each dimension. If this parameter is a list with one
-                element, this element represents the size of all dimensions, otherwise the list must have as many
-                elements as specified by the dimensions parameter and each element represents the size of a dimension.
-                The size of the first dimension is specified by the first element on the list, the size of the second
-                dimension is represented by the second element of the list and so on.
-            initialization_value: the value at which all array elements are set. Defaults to zero (0).
+        :param int dimensions: specifies the number of dimensions of the array.
+        :param list[int] sizes: allows to specify the number of elements for each dimension. If this parameter is a list
+            with one element, this element represents the size of all dimensions, otherwise the list must have as many
+            elements as specified by the dimensions parameter and each element represents the size of a dimension.
+            The size of the first dimension is specified by the first element on the list, the size of the second
+            dimension is represented by the second element of the list and so on.
+        :param int initialization_value: (optional; default = 0) the value at which all array elements are set.
+        :return: a list representing an array of M dimensions.
+        :rtype list:
         """
         # Sanity check: "dimensions" must be of type integer.
         if not isinstance(dimensions, int):
@@ -124,7 +136,7 @@ class Polybench:
 
         Implement this method when requiring a special array initialization.
         If an array is to be initialized with the same value for all of its elements, use the "initialization_value"
-        parameter of the create_array method instead.
+        parameter of the create_array() method instead.
         """
         raise NotImplementedError('Initialize array not implemented')
 
@@ -136,11 +148,12 @@ class Polybench:
         raise NotImplementedError('Custom array print not implemented')
 
     def print_array(self, array: list, native_style: bool = True):
-        """Prints the benchmark array.
+        """
+        Prints the benchmarked array.
 
-        This method allows to print the array (actually a Python list) either as a Python array when native_style is
-         True (default) or using a format common with Polybench/C.
-         The alternative format can be overridden by reimplementing the method print_array_custom().
+        :param list array: the array to be printed.
+        :param bool native_style: (optional; default = True) allows to switch between native Python list printing
+        (default) or a custom format defined in the print_array_custom() method.
         """
         print('===BEGIN DUMP_ARRAYS===')
         if native_style:
@@ -152,7 +165,7 @@ class Polybench:
     def run(self):
         """Prepares the environment for running a kernel, executes it and shows the result.
 
-        DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!
+        **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
 
         This method is akin to the main() function found in Polybench/C.
         Common tasks for the benchmarks are performed by this method such as:
@@ -165,7 +178,7 @@ class Polybench:
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
 
-        This method MUST be overridden by subclasses.
+        This method **MUST** be overridden by subclasses.
 
         This method should declare the data structures required for running the kernel in a similar manner as done in
         the main() function of Polybench/C.
