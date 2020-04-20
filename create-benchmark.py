@@ -37,8 +37,8 @@ if __name__ == '__main__':
     template_init_file = 'util/template-package-init.py'
 
     def parse_command_line() -> {
-        "benchmark_name": str,
-        "category": str
+        'benchmark_name': str,
+        'category': str
     }:
         """
         Parse command line arguments and normalize the results.
@@ -53,10 +53,10 @@ if __name__ == '__main__':
         """
         parser = argparse.ArgumentParser(description='Generate a template for implementing a new benchmark.',
                                          epilog='All benchmarks are created under the "kernels" folder.')
-        parser.add_argument('--name', '-N', nargs=1, type=str, required=True,
+        parser.add_argument('--name', '-N', type=str, required=True,
                             metavar='<BenchmarkName>',
                             help='The name of the benchmark using PascalCase.')
-        parser.add_argument('--category', '-C', nargs=1, type=str,
+        parser.add_argument('--category', '-C', type=str,
                             metavar='<category[.subcategory] | category[/subcategory]>',
                             help='The category name. This will place the benchmark template into a package, generating '
                                  'all required intermediate files. Subcategories can be separated either with a dot or '
@@ -65,15 +65,17 @@ if __name__ == '__main__':
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
+        result = {}
+
         # Process the benchmark name
-        name = str(args.name[0])
+        result['benchmark_name'] = str(args.name)
 
         # Process the category name. Since the category is optional, we need to check if it exists first
-        category = None
+        result['category'] = None
         if not (args.category is None):
-            category = str(args.category[0]).replace('.', '/').lower()
+            result['category'] = str(args.category).replace('.', '/').lower()
 
-        return {"benchmark_name": name, "category": category}
+        return result
 
     def create_package_structure(category: str) -> str:
         """
@@ -148,8 +150,8 @@ if __name__ == '__main__':
 
     # Parse the commandline and obtain the required parameters
     parameters = parse_command_line()
-    benchmark_name = parameters["benchmark_name"]
-    category_name = parameters["category"]
+    benchmark_name = parameters['benchmark_name']
+    category_name = parameters['category']
 
     # Build the directory structure represented by the category
     package_path = create_package_structure(category_name)
