@@ -46,7 +46,7 @@ class Polybench:
         """
         raise RuntimeError('Abstract classes cannot be instantiated.')
 
-    def _create_array_rec(self, dimensions: int, sizes: list[int], initialization_value: int = 0) -> list:
+    def _create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array.
 
         This method assumes that the parameters were previously validated (in the create_array method).
@@ -72,7 +72,7 @@ class Polybench:
             # Generate lists with unique sizes per dimension
             return [self._create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
-    def create_array(self, dimensions: int, sizes: list[int], initialization_value: int = 0) -> list:
+    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """
         Create a new array with a specified size.
 
