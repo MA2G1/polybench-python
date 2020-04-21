@@ -47,4 +47,4 @@ class Correlation(Polybench):
         pass
 
     def run_benchmark(self):
-        print('Correlation')
+        print('Running correlation benchmark')

@@ -1,0 +1,13 @@
+Requires Python 3.6 or newer (tested on 3.7)
+
+Usage:
+    All commands accept help parameters (-h and --help)
+
+    - Create a new benchmark:
+        $ python create-benchmark.py -C category.subcategory -N KernelName
+
+    - List existing benchmarks:
+        $ python run-benchmark.py
+
+    - Running an existing benchmark:
+        $ python run-benchmark.py kernels/datamining/correlation/correlation.py
