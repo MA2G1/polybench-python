@@ -14,6 +14,7 @@
 
 """This module offers the base Polybench class to be used by kernel implementations."""
 from enum import Enum, auto
+from sys import stderr
 
 
 class DatasetSize(Enum):
@@ -37,6 +38,11 @@ class Polybench:
         - kernel()
         - print_array_custom()
     """
+
+    _POLYBENCH_DUMP_TARGET = stderr  # Dump user messages into stderr, as in Polybench/C
+
+    DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
+    DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
     def __init__(self):
         """Class constructor.
@@ -147,22 +153,42 @@ class Polybench:
         """
         raise NotImplementedError('Custom array print not implemented')
 
-    def print_array(self, array: list, native_style: bool = True):
+    def print_array(self, array: list, native_style: bool = True, dump_message: str = ''):
         """
         Prints the benchmarked array.
 
         :param list array: the array to be printed.
         :param bool native_style: (optional; default = True) allows to switch between native Python list printing
+        :param string dump_message: (optional; default = '') allows to set a custom message on begin and end dump
         (default) or a custom format defined in the print_array_custom() method.
         """
-        print('===BEGIN DUMP_ARRAYS===')
+        self.print_message('==BEGIN DUMP_ARRAYS==\n')
+        self.print_message(f'begin dump: {dump_message}')
         if native_style:
             print(array)
         else:
             self.print_array_custom(array)
-        print('===END   DUMP_ARRAYS===')
+        self.print_message(f'\nend   dump: {dump_message}\n')
+        self.print_message('==END   DUMP_ARRAYS==\n')
 
-    def run(self):
+    def print_message(self, *args, **kwargs):
+        """
+        Prints a user message into the configured output.
+        This method also removes the newline from vanilla print(), so the user must use them manually.
+
+        This method is inspired by: https://stackoverflow.com/a/14981125
+        """
+        print(*args, file=self._POLYBENCH_DUMP_TARGET, end='', **kwargs)
+
+    def print_value(self, value: DATA_TYPE):
+        """
+        Prints a data value using the configured data formatter.
+
+        :param value: the value to be printed.
+        """
+        self.print_message(self.DATA_PRINT_MODIFIER.format(value))
+
+    def run(self, output=stderr):
         """Prepares the environment for running a kernel, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
@@ -173,6 +199,7 @@ class Polybench:
             - Performing timing operations
             - Print the benchmark's output (timing, kernel, etc.)
         """
+        self._POLYBENCH_DUMP_TARGET = output
         self.run_benchmark()
 
     def run_benchmark(self):
