@@ -17,6 +17,7 @@
 from kernels.polybench import Polybench
 from kernels.polybench import DatasetSize
 
+from math import sqrt
 
 class Correlation(Polybench):
 
@@ -40,11 +41,75 @@ class Correlation(Polybench):
         self.M = parameters.get('M')
         self.N = parameters.get('N')
 
+        self.DATA_PRINT_MODIFIER = '{:0.2f} '
+
     def initialize_array(self, array: list):
-        pass
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                array[i][j] = ((i * j) / self.M) + i
 
     def print_array_custom(self, array: list):
-        pass
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i][j])
+
+    def kernel(self, data: list, corr: list, mean: list, stddev: list):
+        eps = 0.1
+
+        # NOTE: float_n
+
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[i][j]
+            mean[j] /= self.N
+
+        for j in range(0, self.M):
+            stddev[j] = 0.0
+            for i in range(0, self.N):
+                stddev[j] += (data[i][j] - mean[j]) * (data[i][j] - mean[j])
+            stddev[j] /= self.N
+            stddev[j] = sqrt(stddev[j])
+            # The following in an elegant but usual way to handle near-zero std. dev. values, which below would cause a
+            # zero divide.
+            stddev[j] = 1.0 if stddev[j] <= eps else stddev[j]
+
+        # Center and reduce the column vectors.
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i][j] -= mean[j]
+                data[i][j] /= sqrt(self.N) * stddev[j]
+
+        # Calculate the m*n correlation matrix.
+        for i in range(0, self.M-1):
+            corr[i][i] = 1.0
+            for j in range(i+1, self.M):
+                corr[i][j] = 0.0
+                for k in range(0, self.N):
+                    corr[i][j] += (data[k][i] * data[k][j])
+                corr[j][i] = corr[i][j]
+        corr[self.M-1][self.M-1] = 1.0
+# scop end
 
     def run_benchmark(self):
-        print('Running correlation benchmark')
+        # Array creation
+        data = self.create_array(2, [self.N, self.M])
+        corr = self.create_array(2, [self.M, self.M])
+        mean = self.create_array(1, [self.M])
+        stddev = self.create_array(1, [self.M])
+
+        # Initialize array(s)
+        self.initialize_array(data)
+
+        # TODO: Start timer
+
+        # Run kernel
+        self.kernel(data, corr, mean, stddev)
+
+        # TODO: Stop and print timer
+
+        # Prevent dead code elimination. Print data.
+        self.print_array(corr, False, 'corr')
