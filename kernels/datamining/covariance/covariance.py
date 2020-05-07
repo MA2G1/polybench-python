@@ -44,7 +44,7 @@ class Covariance(Polybench):
         pass
 
     def print_array_custom(self, array: list):
-        pass
+        self.print_message('\n<array printing>')
 
     def run_benchmark(self):
         print('Running covariance benchmark')

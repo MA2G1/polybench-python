@@ -19,6 +19,7 @@ from kernels.polybench import DatasetSize
 
 from math import sqrt
 
+
 class Correlation(Polybench):
 
     def __init__(self, dataset_size: DatasetSize = DatasetSize.LARGE):
@@ -55,23 +56,27 @@ class Correlation(Polybench):
                     self.print_message('\n')
                 self.print_value(array[i][j])
 
-    def kernel(self, data: list, corr: list, mean: list, stddev: list):
+    def kernel(self, float_n: float, data: list, corr: list, mean: list, stddev: list):
+        # NOTE: float_n is the actual value of N as a float, with the intention of keeping it in the stack
+        #
+        # NOTE: _PB_X: allows to tune if the bound values are parametric or scalar. Python does not understand of
+        # constants, so scalar bounds are out of scope. Maybe we can differentiate between parametric (maybe allocated
+        # in the stack by the runtime) and non-parametric (class member, maybe allocated in the heap). Where the actual
+        # value is stored will depend in the runtime's implementation and JIT recompiler.
         eps = 0.1
-
-        # NOTE: float_n
 
 # scop begin
         for j in range(0, self.M):
             mean[j] = 0.0
             for i in range(0, self.N):
                 mean[j] += data[i][j]
-            mean[j] /= self.N
+            mean[j] /= float_n
 
         for j in range(0, self.M):
             stddev[j] = 0.0
             for i in range(0, self.N):
                 stddev[j] += (data[i][j] - mean[j]) * (data[i][j] - mean[j])
-            stddev[j] /= self.N
+            stddev[j] /= float_n
             stddev[j] = sqrt(stddev[j])
             # The following in an elegant but usual way to handle near-zero std. dev. values, which below would cause a
             # zero divide.
@@ -81,7 +86,7 @@ class Correlation(Polybench):
         for i in range(0, self.N):
             for j in range(0, self.M):
                 data[i][j] -= mean[j]
-                data[i][j] /= sqrt(self.N) * stddev[j]
+                data[i][j] /= sqrt(float_n) * stddev[j]
 
         # Calculate the m*n correlation matrix.
         for i in range(0, self.M-1):
@@ -96,6 +101,7 @@ class Correlation(Polybench):
 
     def run_benchmark(self):
         # Array creation
+        float_n = float(self.N)  # we will need a floating point version of N
         data = self.create_array(2, [self.N, self.M])
         corr = self.create_array(2, [self.M, self.M])
         mean = self.create_array(1, [self.M])
@@ -107,9 +113,9 @@ class Correlation(Polybench):
         # TODO: Start timer
 
         # Run kernel
-        self.kernel(data, corr, mean, stddev)
+        self.kernel(float_n, data, corr, mean, stddev)
 
         # TODO: Stop and print timer
 
-        # Prevent dead code elimination. Print data.
-        self.print_array(corr, False, 'corr')
+        # Prevent dead code elimination. Return printable data.
+        return [('corr', corr)]

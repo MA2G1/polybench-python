@@ -180,7 +180,7 @@ class Polybench:
         """
         print(*args, file=self._POLYBENCH_DUMP_TARGET, end='', **kwargs)
 
-    def print_value(self, value: DATA_TYPE):
+    def print_value(self, value):
         """
         Prints a data value using the configured data formatter.
 
@@ -188,7 +188,7 @@ class Polybench:
         """
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
 
-    def run(self, output=stderr):
+    def run(self, print_result: bool = False, output=stderr):
         """Prepares the environment for running a kernel, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
@@ -199,8 +199,22 @@ class Polybench:
             - Performing timing operations
             - Print the benchmark's output (timing, kernel, etc.)
         """
-        self._POLYBENCH_DUMP_TARGET = output
-        self.run_benchmark()
+        #
+        # Perform pre-benchmark actions.
+        #
+        self._POLYBENCH_DUMP_TARGET = output  # set the output target for printing messages
+
+        #
+        # Run the benchmark
+        #
+        outputs = self.run_benchmark()
+
+        #
+        # Perform post-benchmark actions
+        #
+        if print_result:
+            for out in outputs:
+                self.print_array(out[1], False, out[0])
 
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
@@ -209,5 +223,9 @@ class Polybench:
 
         This method should declare the data structures required for running the kernel in a similar manner as done in
         the main() function of Polybench/C.
+
+        :returns: a list of tuples. For each tuple (X, Y), X represents the name of the output and Y is the actual
+         output. The output(s) will be used by the print_array() method when required.
+        :rtype: list[tuple]
         """
         raise NotImplementedError('Kernel not implemented')
