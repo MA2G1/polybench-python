@@ -39,7 +39,11 @@ class PolyBench:
         - print_array_custom()
     """
 
-    _POLYBENCH_DUMP_TARGET = stderr  # Dump user messages into stderr, as in Polybench/C
+    # Options that may lead to better performance
+    POLYBENCH_PADDING_FACTOR = 0               # Pad all dimensions of lists by this value
+
+    # Other options (not present in the README file)
+    POLYBENCH_DUMP_TARGET = stderr             # Dump user messages into stderr, as in Polybench/C
 
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
@@ -58,9 +62,9 @@ class PolyBench:
         This method assumes that the parameters were previously validated (in the create_array method).
 
         :param int dimensions: the number of dimensions to create. One dimension creates a list, two a matrix and so on.
-        :param list[int] sizes: a list of integers, each one representing the size of a dimension. The first element of the
-            list represents the size of the first dimension, the second element the size of the second dimension and so
-            on. If this list is smaller than the actual number of dimensions then the last size read is used for the
+        :param list[int] sizes: a list of integers, each one representing the size of a dimension. The first element of
+            the list represents the size of the first dimension, the second element the size of the second dimension and
+            so on. If this list is smaller than the actual number of dimensions then the last size read is used for the
             remaining dimensions.
         :param int initialization_value: (optional; default = 0) the value to use for initializing the arrays during
             their creation.
@@ -134,8 +138,11 @@ class PolyBench:
             raise AssertionError('Invalid value for parameter "sizes". '
                                  f'Expected "list of positive integer"; received "{not_positives}"')
 
+        # Add post-padding to every array dimension
+        new_sizes = [size + self.POLYBENCH_PADDING_FACTOR for size in sizes]
+
         # At this point it is safe to say that both dimensions and sizes are valid.
-        return self._create_array_rec(dimensions, sizes, initialization_value)
+        return self._create_array_rec(dimensions, new_sizes, initialization_value)
 
     def initialize_array(self, array: list):
         """Implements the array initialization.
@@ -178,7 +185,7 @@ class PolyBench:
 
         This method is inspired by: https://stackoverflow.com/a/14981125
         """
-        print(*args, file=self._POLYBENCH_DUMP_TARGET, end='', **kwargs)
+        print(*args, file=self.POLYBENCH_DUMP_TARGET, end='', **kwargs)
 
     def print_value(self, value):
         """
@@ -202,7 +209,7 @@ class PolyBench:
         #
         # Perform pre-benchmark actions.
         #
-        self._POLYBENCH_DUMP_TARGET = output  # set the output target for printing messages
+        self.POLYBENCH_DUMP_TARGET = output  # set the output target for printing messages
 
         #
         # Run the benchmark
@@ -247,3 +254,4 @@ class PolyBench:
     def print_instruments(self):
         """Print the state of the instruments."""
         pass
+

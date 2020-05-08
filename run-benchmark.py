@@ -194,7 +194,7 @@ if __name__ == '__main__':
                 if main_logger.isEnabledFor(logging.INFO):
                     main_logger.info('Module "%s" found. Implementor class is "%s"',
                                      implementation.__module__, implementation.__name__)
-                instance = implementation()
+                instance = implementation()  # creates a new instance
 
         # Check if the module was found
         if instance is None:
