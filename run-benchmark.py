@@ -159,6 +159,8 @@ if __name__ == '__main__':
         if not (args.output is None):
             print_result(True)
             set_output(args.output)
+        else:
+            set_output('stderr')
 
         # Process the "verify" argument
         result['verify'] = False
@@ -167,6 +169,9 @@ if __name__ == '__main__':
             set_output(args.verify + '.verify')  # file_name + '.verify' -> file.ext.verify
             result['verify_file'] = args.verify
             result['verify'] = True
+        else:
+            result['verify_file'] = None
+            result['verify'] = False
 
         return result
 
