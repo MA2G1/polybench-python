@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module offers the base Polybench class to be used by kernel implementations."""
+"""This module offers the base Polybench class for implementing kernels in benchmarks."""
 from enum import Enum, auto
 from sys import stderr
 
@@ -29,11 +29,11 @@ class DatasetSize(Enum):
     EXTRA_LARGE = auto()
 
 
-class Polybench:
-    """This class offers common methods for making and evaluating different kernels.
+class PolyBench:
+    """This class offers common methods for building new benchmarks.
 
-    This class is not meant to be instantiated (abstract class) but rather each kernel must inherit from it and override
-    the following methods:
+    This class is not meant to be instantiated as it is an abstract class. Each benchmark must inherit from this class
+    and override the following methods:
         - __init__()
         - kernel()
         - print_array_custom()
@@ -189,7 +189,7 @@ class Polybench:
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
 
     def run(self, print_result: bool = False, output=stderr):
-        """Prepares the environment for running a kernel, executes it and shows the result.
+        """Prepares the environment for running a benchmark, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
 
@@ -231,7 +231,7 @@ class Polybench:
         raise NotImplementedError('Kernel not implemented')
 
     def start_instruments(self):
-        """Perform various actions before running the actual kernel.
+        """Perform various actions before running the actual benchmark.
 
         Actions may include:
           - Set up timers

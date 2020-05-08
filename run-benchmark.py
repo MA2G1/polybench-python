@@ -20,9 +20,9 @@ This program allows to use only the Python runtime for everything the user shoul
 the different kernels."""
 
 
-# Import the basic elements for searching kernel implementations
-from kernels import kernel_classes
-from kernels.polybench import Polybench
+# Import the basic elements for searching benchmark implementations
+from benchmarks import benchmark_classes
+from benchmarks.polybench import PolyBench
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
 import argparse
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         :return: None.
         :raise: NotImplementedError when there are no benchmarks available.
         """
-        if len(kernel_classes) < 1:
+        if len(benchmark_classes) < 1:
             raise NotImplementedError("There are no available benchmarks to run.")
 
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         """
         check_benchmark_availability()
         print('List of available benchmarks:')
-        for impl in kernel_classes:
+        for impl in benchmark_classes:
             print(f'  {impl.__module__.replace(".", "/")}.py')
 
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
                                                      'all.')
         parser.add_argument('benchmark', metavar='benchmark.py', nargs='?', default=None,
                             help='The path, relative to this script, to any file having a class implementing Polybench.'
-                                 ' All implementations must reside somewhere inside the "kernels" folder.')
+                                 ' All implementations must reside somewhere inside the "benchmarks" folder.')
         parser.add_argument('--output', dest='output', default=None,
                             help='Prints the benchmark''s result into a file. There are two special file names in '
                                  'order to print the output to console: "stdout" and "stderr".')
@@ -188,7 +188,7 @@ if __name__ == '__main__':
 
         # Search the module within available implementations
         instance = None
-        for implementation in kernel_classes:
+        for implementation in benchmark_classes:
             if implementation.__module__ == module_name:
                 # Module found! Instantiate a new class with it
                 if main_logger.isEnabledFor(logging.INFO):
@@ -202,7 +202,7 @@ if __name__ == '__main__':
             raise NotImplementedError(f'Module {module} not implemented.')
 
         # When the module was found, run it.
-        if isinstance(instance, Polybench):
+        if isinstance(instance, PolyBench):
             if main_logger.isEnabledFor(logging.INFO):
                 main_logger.info(f'Running "{instance.__class__.__name__}"')
             instance.run(print_result, output_file)

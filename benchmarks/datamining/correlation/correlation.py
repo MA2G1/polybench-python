@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Implements the correlation kernel in a Polybench class."""
+"""Implements the correlation kernel in a PolyBench class."""
 
-from kernels.polybench import Polybench
-from kernels.polybench import DatasetSize
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench import DatasetSize
 
 from math import sqrt
 
 
-class Correlation(Polybench):
+class Correlation(PolyBench):
 
     def __init__(self, dataset_size: DatasetSize = DatasetSize.LARGE):
         if not isinstance(dataset_size, DatasetSize):

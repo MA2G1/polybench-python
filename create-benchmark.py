@@ -32,7 +32,7 @@ import shutil
 if __name__ == '__main__':
 
     # Define some "constant" references
-    kernel_path = 'kernels'
+    benchmark_path = 'benchmarks'
     template_benchmark_file = 'util/template-benchmark.py'
     template_init_file = 'util/template-package-init.py'
 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
             slashes as separators.
         """
         parser = argparse.ArgumentParser(description='Generate a template for implementing a new benchmark.',
-                                         epilog='All benchmarks are created under the "kernels" folder.')
+                                         epilog='All benchmarks are created under the "benchmarks" folder.')
         parser.add_argument('--name', '-N', type=str, required=True,
                             metavar='<BenchmarkName>',
                             help='The name of the benchmark using PascalCase.')
@@ -84,23 +84,23 @@ if __name__ == '__main__':
         :param str category: The category name for which to create the package structure. If this parameter is set to
             "None" then no actions will be performed by this function.
         :return: The full path for the created package relative to the running script's location. If "None" was passed
-            as argument, the returned path will be the directory specified by "kernel_path".
+            as argument, the returned path will be the directory specified by "benchmark_path".
         :rtype str:
 
         Notes
         -----
-        The package structure for Polybench/Python is always relative to the path specified by "kernel_path". This
+        The package structure for Polybench/Python is always relative to the path specified by "benchmark_path". This
         implies that package structures will always be inside that path.
         """
-        target_path = kernel_path
+        target_path = benchmark_path
         if not (category is None):
             target_path += '/' + category
             # Create, if necessary, all of the directories in the package path
             Path(target_path).mkdir(parents=True, exist_ok=True)
 
             # Check the existence of "__init__.py" files and, if necessary, create them from the template
-            init_file_locations = target_path.split('/')[1:-1]  # exclude "kernels" and the final dir from this list
-            init_file_path = kernel_path + '/'
+            init_file_locations = target_path.split('/')[1:-1]  # exclude "benchmarks" and the final dir from this list
+            init_file_path = benchmark_path + '/'
             for check in init_file_locations:
                 init_file_path += check + '/'
                 init_file = init_file_path + '__init__.py'

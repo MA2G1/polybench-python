@@ -14,4 +14,4 @@
 
 """Import the kernel on package load."""
 
-from kernels.datamining.covariance.covariance import Covariance
+from benchmarks.datamining.covariance.covariance import Covariance

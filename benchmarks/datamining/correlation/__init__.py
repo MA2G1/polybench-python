@@ -14,4 +14,4 @@
 
 """Import the kernel on package load."""
 
-from kernels.datamining.correlation.correlation import Correlation
+from benchmarks.datamining.correlation.correlation import Correlation

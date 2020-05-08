@@ -14,11 +14,11 @@
 
 """<replace_with_module_description>"""
 
-from kernels.polybench import Polybench
-from kernels.polybench import DatasetSize
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench import DatasetSize
 
 
-class TemplateClass(Polybench):
+class TemplateClass(PolyBench):
 
     def __init__(self, dataset_size: DatasetSize = DatasetSize.LARGE):
         if not isinstance(dataset_size, DatasetSize):
