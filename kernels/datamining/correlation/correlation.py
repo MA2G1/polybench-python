@@ -110,12 +110,15 @@ class Correlation(Polybench):
         # Initialize array(s)
         self.initialize_array(data)
 
-        # TODO: Start timer
+        # Start instruments
+        self.start_instruments()
 
         # Run kernel
         self.kernel(float_n, data, corr, mean, stddev)
 
-        # TODO: Stop and print timer
+        # Stop and print instruments
+        self.stop_instruments()
+        self.print_instruments()
 
-        # Prevent dead code elimination. Return printable data.
+        # Return printable data as a list of tuples ('name', value)
         return [('corr', corr)]

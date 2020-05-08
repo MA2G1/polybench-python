@@ -229,3 +229,21 @@ class Polybench:
         :rtype: list[tuple]
         """
         raise NotImplementedError('Kernel not implemented')
+
+    def start_instruments(self):
+        """Perform various actions before running the actual kernel.
+
+        Actions may include:
+          - Set up timers
+          - Configure CPU scheduler
+          - Configure process priority
+        """
+        pass
+
+    def stop_instruments(self):
+        """Restore system state if it was previously modified by start_instruments()."""
+        pass
+
+    def print_instruments(self):
+        """Print the state of the instruments."""
+        pass

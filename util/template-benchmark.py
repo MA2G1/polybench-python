@@ -47,5 +47,36 @@ class TemplateClass(Polybench):
     def print_array_custom(self, array: list):
         pass
 
+    def kernel(self):
+        """The actual kernel implementation.
+
+        Modify this method's signature according to the kernel's needs.
+        """
+        print(f'NOT IMPLEMENTED: Template kernel for {self.__module__}')
+
     def run_benchmark(self):
-        print('NOT IMPLEMENTED: Template benchmark.')
+        # Create data structures (arrays, auxiliary variables, etc.)
+
+        # Initialize data structures
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel()
+
+        # Stop and print instruments
+        self.stop_instruments()
+        self.print_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
