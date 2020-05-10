@@ -17,12 +17,13 @@ from enum import Enum, auto
 from sys import stderr
 from time import time
 
+# Import requirements for IL
 import il
 import ctypes
 
 
 @il.asm
-def read_tsc():
+def _read_tsc():
     """
     .intel_syntax noprefix
     RDTSC
@@ -73,10 +74,12 @@ class PolyBench:
     # Other options (not present in the README file)
     POLYBENCH_DUMP_TARGET = stderr             # Dump user messages into stderr, as in Polybench/C
     POLYBENCH_GFLOPS = False
+    POLYBENCH_PAPI_VERBOSE = False
 
-    _polybench_program_total_flops = 0
-    _polybench_timer_start = 0
-    _polybench_timer_stop = 0
+    # Timing counters
+    __polybench_program_total_flops = 0
+    __polybench_timer_start = 0
+    __polybench_timer_stop = 0
 
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
@@ -89,7 +92,7 @@ class PolyBench:
         """
         raise RuntimeError('Abstract classes cannot be instantiated.')
 
-    def _create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
+    def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array.
 
         This method assumes that the parameters were previously validated (in the create_array method).
@@ -110,10 +113,10 @@ class PolyBench:
 
         if len(sizes) == 1:
             # Generate lists of the same size per dimension
-            return [self._create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
+            return [self.__create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
         else:
             # Generate lists with unique sizes per dimension
-            return [self._create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
+            return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
     def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """
@@ -175,7 +178,7 @@ class PolyBench:
         new_sizes = [size + self.POLYBENCH_PADDING_FACTOR for size in sizes]
 
         # At this point it is safe to say that both dimensions and sizes are valid.
-        return self._create_array_rec(dimensions, new_sizes, initialization_value)
+        return self.__create_array_rec(dimensions, new_sizes, initialization_value)
 
     def initialize_array(self, array: list):
         """Implements the array initialization.
@@ -272,11 +275,6 @@ class PolyBench:
 
     def start_instruments(self):
         """Perform various actions before running the actual benchmark.
-
-        Actions may include:
-          - Set up timers
-          - Configure CPU scheduler
-          - Configure process priority
         """
         pass
 
@@ -288,21 +286,25 @@ class PolyBench:
         """Print the state of the instruments."""
         pass
 
-    def timer_start(self):
-        if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            self._timer_start = time()
-        else:
-            self._timer_start = read_tsc()
+    def __prepare_instruments(self):
+        pass
 
-    def timer_stop(self):
+    def __timer_start(self):
+        self.prepare_instruments()
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            self._timer_stop = time()
+            self.__timer_start = time()
         else:
-            self._timer_stop = read_tsc()
+            self.__timer_start = _read_tsc()
 
-    def timer_print(self):
+    def __timer_stop(self):
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            print(f'{self._timer_stop - self._timer_start:0.6f}')
+            self.__timer_stop = time()
         else:
-            print(f'{self._timer_stop - self._timer_start:Ld}')
+            self.__timer_stop = _read_tsc()
+
+    def __timer_print(self):
+        if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
+            print(f'{self.__timer_stop - self.__timer_start:0.6f}')
+        else:
+            print(f'{self.__timer_stop - self.__timer_start:Ld}')
 
