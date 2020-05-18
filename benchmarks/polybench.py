@@ -17,6 +17,9 @@ from enum import Enum, auto
 from sys import stderr
 from time import time
 
+# Import requirements for PAPI
+from pypapi import events as papi_events, papi_high
+
 # Import requirements for IL
 import il
 import ctypes
@@ -80,6 +83,11 @@ class PolyBench:
     __polybench_program_total_flops = 0
     __polybench_timer_start = 0
     __polybench_timer_stop = 0
+
+    # PAPI counters
+    __papi_available_counters = []
+    __papi_counters = []
+    __papi_counters_result = []
 
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
@@ -276,15 +284,26 @@ class PolyBench:
     def start_instruments(self):
         """Perform various actions before running the actual benchmark.
         """
-        pass
+        if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
+            self.__timer_start()
+        elif self.POLYBENCH_PAPI:
+            self.__prepare_instruments()
+            self.__papi_init()
+            self.__papi_start_counters()
 
     def stop_instruments(self):
         """Restore system state if it was previously modified by start_instruments()."""
-        pass
+        if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
+            self.__timer_stop()
+        elif self.POLYBENCH_PAPI:
+            self.__papi_stop_counters()
 
     def print_instruments(self):
         """Print the state of the instruments."""
-        pass
+        if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
+            self.__timer_print()
+        elif self.POLYBENCH_PAPI:
+            self.__papi_print()
 
     def __prepare_instruments(self):
         pass
@@ -307,4 +326,94 @@ class PolyBench:
             print(f'{self.__timer_stop - self.__timer_start:0.6f}')
         else:
             print(f'{self.__timer_stop - self.__timer_start:Ld}')
+
+    def __papi_init(self):
+        """
+        Performs initialization of the PAPI library.
+
+        Since the library python-papi only exports standard events, it is necessary to know which ones are available and
+        which ones are requested by the user to perform a validation phase.
+        :return: None
+        """
+        def get_available_counters() -> list:
+            """
+            Gets a list of available counters. Each element of the list is a tuple containing the name of the event and
+            the numerical value corresponding to the event. This value is masked.
+            :return: A list with the available benchmarks
+            :rtype: list[tuple]
+            """
+            def is_number(x):
+                return isinstance(x, int) or isinstance(x, float) or isinstance(x, complex)
+            # See: https://stackoverflow.com/a/9794849
+            from inspect import getmembers
+            return getmembers(papi_events, is_number)
+
+        def parse_counters_file():
+            result = []
+            with open('papi_counters.list') as f:
+                contents = f.read()
+                lines = contents.splitlines()
+                lines = [line.strip() for line in lines]  # Lines without single line comments
+
+                is_in_comment = False
+                for line in lines:
+                    if not is_in_comment:
+                        if line.startswith('/*'):
+                            is_in_comment = True
+                            continue
+                        elif line.startswith('//'):
+                            continue
+                        else:
+                            result.append(line.strip('",'))  # store plain counter names
+                    else:
+                        if line.endswith('*/'):
+                            is_in_comment = False
+            return result
+
+        self.__papi_available_counters = get_available_counters()
+        user_counters = parse_counters_file()
+
+        # Check if there are any user supplied counters after reading the file
+        if len(user_counters) < 1:
+            raise NotImplementedError('Must supply at least one counter name in file "papi_counters.list"')
+
+        # Check if the user counters exist within the available standard set.
+        for usr_counter in user_counters:
+            is_available = False
+            for avlbl_counter in self.__papi_available_counters:
+                if usr_counter == avlbl_counter[0]:
+                    self.__papi_counters.append(avlbl_counter[1])
+                    is_available = True
+                    break
+            if not is_available:
+                print(f'WARNING: counter "{usr_counter}" not available.')
+
+    def __papi_start_counters(self):
+        papi_high.start_counters(self.__papi_counters)
+
+    def __papi_stop_counters(self):
+        self.__papi_counters_result = papi_high.stop_counters()
+
+    def __papi_print(self):
+        def papi_counter_names():
+            """
+            Translate back the PAPI identifiers into user-readable ones.
+            :return: a list of PAPI identifiers
+            """
+            result = []
+            for usr_counter in self.__papi_counters:
+                for avlbl_counter in self.__papi_available_counters:
+                    if usr_counter == avlbl_counter[1]:
+                        result.append(avlbl_counter[0])
+                        break
+            return result
+
+        counter_names = papi_counter_names()
+        for i in range(0, len(self.__papi_counters)):
+            if self.POLYBENCH_PAPI_VERBOSE:
+                print(f'{counter_names[i]}=', end='')
+            print(f'{self.__papi_counters_result[i]} ', end='')
+            if self.POLYBENCH_PAPI_VERBOSE:
+                print()  # new line
+        print()  # new line
 
