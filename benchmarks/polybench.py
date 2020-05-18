@@ -24,6 +24,8 @@ from pypapi import events as papi_events, papi_high
 import il
 import ctypes
 
+import os
+
 
 @il.asm
 def _read_tsc():
@@ -306,10 +308,13 @@ class PolyBench:
             self.__papi_print()
 
     def __prepare_instruments(self):
-        pass
+        if not self.POLYBENCH_NO_FLUSH_CACHE:
+            self.__flush_cache()
+        if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
+            self.__linux_fifo_scheduler()
 
     def __timer_start(self):
-        self.prepare_instruments()
+        self.__prepare_instruments()
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             self.__timer_start = time()
         else:
@@ -320,6 +325,8 @@ class PolyBench:
             self.__timer_stop = time()
         else:
             self.__timer_stop = _read_tsc()
+        if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
+            self.__linux_standard_scheduler()
 
     def __timer_print(self):
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
@@ -416,4 +423,23 @@ class PolyBench:
             if self.POLYBENCH_PAPI_VERBOSE:
                 print()  # new line
         print()  # new line
+
+    def __flush_cache(self):
+        """Thrashes the cache by generating a very large data structure."""
+        cs = self.POLYBENCH_CACHE_SIZE_KB * 1024 / 8  # divided by sizeof(double)
+        flush = [0.0 for x in range(cs)]  # 0.0 forces data type to be a float
+        tmp = 0.0
+        for i in range(cs):
+            tmp += flush[i]
+        assert tmp <= 10.0
+
+    def __linux_fifo_scheduler(self):
+        param = os.sched_getparam(0)
+        param.sched_priority = os.sched_get_priority_max(os.SCHED_FIFO)
+        os.sched_setscheduler(0, os.SCHED_FIFO, param)
+
+    def __linux_standard_scheduler(self):
+        param = os.sched_getparam(0)
+        param.sched_priority = os.sched_get_priority_max(os.SCHED_OTHER)
+        os.sched_setscheduler(0, os.SCHED_OTHER, param)
 
