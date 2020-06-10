@@ -15,6 +15,23 @@
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
 from enum import Enum, auto
 from sys import stderr
+from time import time
+
+import il
+import ctypes
+
+
+@il.asm
+def read_tsc():
+    """
+    .intel_syntax noprefix
+    RDTSC
+    sal     rdx, 32
+    mov     eax, eax
+    or      rax, rdx
+    ret
+    """
+    return ctypes.c_ulonglong
 
 
 class DatasetSize(Enum):
@@ -39,11 +56,27 @@ class PolyBench:
         - print_array_custom()
     """
 
+    # Typical options
+    POLYBENCH_TIME = False                     # Output execution time
+    POLYBENCH_DUMP_ARRAYS = False              # Dump live-out arrays
+
     # Options that may lead to better performance
     POLYBENCH_PADDING_FACTOR = 0               # Pad all dimensions of lists by this value
 
+    # Timing/profiling options
+    POLYBENCH_PAPI = False                     # Turn on PAPI timing
+    POLYBENCH_CACHE_SIZE_KB = 32770            # Cache size to flush, in KiB (32+ MiB)
+    POLYBENCH_NO_FLUSH_CACHE = False           # Don't flush the cache before calling the timer
+    POLYBENCH_CYCLE_ACCURATE_TIMER = False     # Use Time Stamp Counter
+    POLYBENCH_LINUX_FIFO_SCHEDULER = False     # Use FIFO scheduler (must run as root)
+
     # Other options (not present in the README file)
     POLYBENCH_DUMP_TARGET = stderr             # Dump user messages into stderr, as in Polybench/C
+    POLYBENCH_GFLOPS = False
+
+    _polybench_program_total_flops = 0
+    _polybench_timer_start = 0
+    _polybench_timer_stop = 0
 
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
@@ -254,4 +287,22 @@ class PolyBench:
     def print_instruments(self):
         """Print the state of the instruments."""
         pass
+
+    def timer_start(self):
+        if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
+            self._timer_start = time()
+        else:
+            self._timer_start = read_tsc()
+
+    def timer_stop(self):
+        if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
+            self._timer_stop = time()
+        else:
+            self._timer_stop = read_tsc()
+
+    def timer_print(self):
+        if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
+            print(f'{self._timer_stop - self._timer_start:0.6f}')
+        else:
+            print(f'{self._timer_stop - self._timer_start:Ld}')
 
