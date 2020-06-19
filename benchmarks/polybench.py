@@ -1,5 +1,5 @@
-# Copyright 2019 Miguel Angel Abella Gonzalez <miguel.abella@udc.es>
 #
+# Copyright 2019 Miguel Angel Abella Gonzalez <miguel.abella@udc.es>
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
+import benchmarks.polybench_options as PolyBenchOptions
+
 from enum import Enum, auto
 from sys import stderr
 from time import time
@@ -94,13 +96,39 @@ class PolyBench:
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
-    def __init__(self):
+    def __init__(self, options: dict):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
         This method **MUST** be overridden by subclasses.
+        This method may be called from subclasses during their initialization, so we have to check whether the __init__
+        call came from a subclass or not.
         """
-        raise RuntimeError('Abstract classes cannot be instantiated.')
+        # Check whether __init__ is being called from a subclass.
+        # The first check is for preventing the issubclass() call from returning True when directly instantiating
+        # PolyBench. As the documentation states, issubclass(X, X) -> True
+        if self.__class__ != PolyBench and issubclass(self.__class__, PolyBench):
+            # The options dictionary is expected to have all possible options. Blindly assign values.
+            # Typical options
+            self.POLYBENCH_TIME = options[PolyBenchOptions.POLYBENCH_TIME]
+            self.POLYBENCH_DUMP_ARRAYS = options[PolyBenchOptions.POLYBENCH_DUMP_ARRAYS]
+
+            # Options that may lead to better performance
+            self.POLYBENCH_PADDING_FACTOR = options[PolyBenchOptions.POLYBENCH_PADDING_FACTOR]
+
+            # Timing/profiling options
+            self.POLYBENCH_PAPI = options[PolyBenchOptions.POLYBENCH_PAPI]
+            self.POLYBENCH_CACHE_SIZE_KB = options[PolyBenchOptions.POLYBENCH_CACHE_SIZE_KB]
+            self.POLYBENCH_NO_FLUSH_CACHE = options[PolyBenchOptions.POLYBENCH_NO_FLUSH_CACHE]
+            self.POLYBENCH_CYCLE_ACCURATE_TIMER = options[PolyBenchOptions.POLYBENCH_CYCLE_ACCURATE_TIMER]
+            self.POLYBENCH_LINUX_FIFO_SCHEDULER = options[PolyBenchOptions.POLYBENCH_LINUX_FIFO_SCHEDULER]
+
+            # Other options (not present in the README file)
+            self.POLYBENCH_DUMP_TARGET = options[PolyBenchOptions.POLYBENCH_DUMP_TARGET]
+            self.POLYBENCH_GFLOPS = options[PolyBenchOptions.POLYBENCH_GFLOPS]
+            self.POLYBENCH_PAPI_VERBOSE = options[PolyBenchOptions.POLYBENCH_PAPI_VERBOSE]
+        else:
+            raise RuntimeError('Abstract classes cannot be instantiated.')
 
     def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array.
@@ -265,6 +293,7 @@ class PolyBench:
         #
         # Perform post-benchmark actions
         #
+        self.print_instruments()
         if print_result:
             for out in outputs:
                 self.print_array(out[1], False, out[0])

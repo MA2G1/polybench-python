@@ -23,6 +23,7 @@ the different kernels."""
 # Import the basic elements for searching benchmark implementations
 from benchmarks import benchmark_classes
 from benchmarks.polybench import PolyBench
+import benchmarks.polybench_options as PolyBenchOptions
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
 import argparse
@@ -68,10 +69,10 @@ if __name__ == '__main__':
 
     def parse_command_line() -> {
         'benchmark': str,
-        'print': bool,
         'output': stderr,
         'verify': bool,
-        'verify_file': str
+        'verify_file': str,
+        'polybench_options': dict
     }:
         """
         Parse command line arguments and generate normalized results.
@@ -110,6 +111,10 @@ if __name__ == '__main__':
                                  'existing one. The comparison result is either "OK" or "FAIL". Both files are '
                                  'expected to have Unix line endings. Since this option generates an output file, it '
                                  'also overrides whatever you may specify in --output')
+        parser.add_argument('--options', dest='options', default=None,
+                            help='A comma separated list of options passed to PolyBench. Available options can be found'
+                                 ' in the README file. Usage: run.py --options '
+                                 'POLYBENCH_PADDING_FACTOR=3,POLYBENCH_LINUX_FIFO_SCHEDULER')
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
@@ -141,9 +146,6 @@ if __name__ == '__main__':
 
         # Define some auxiliary functions.
         # Some parameters assign values with the same meanings. This prevents typing errors from happening.
-        def print_result(val: bool):
-            result['print'] = val
-
         def set_output(file_name: str):
             if file_name == 'stderr':
                 handle = stderr
@@ -153,19 +155,19 @@ if __name__ == '__main__':
                 handle = open(file_name, 'w', newline='\n')
             result['output'] = handle
 
-        print_result(False)  # By default, do not print anything
+        print_result = False  # By default, do not print anything
 
         # Process the "output" argument
         if not (args.output is None):
-            print_result(True)
+            print_result = True
             set_output(args.output)
         else:
             set_output('stderr')
 
-        # Process the "verify" argument
+        # Process the "verify" argument. May alter 'output'
         result['verify'] = False
         if not (args.verify is None):
-            print_result(True)
+            print_result = True
             set_output(args.verify + '.verify')  # file_name + '.verify' -> file.ext.verify
             result['verify_file'] = args.verify
             result['verify'] = True
@@ -173,18 +175,38 @@ if __name__ == '__main__':
             result['verify_file'] = None
             result['verify'] = False
 
+        # Process PolyBench options
+        # First import default options into polybench_options
+        result['polybench_options'] = PolyBenchOptions.polybench_default_options.copy()
+        if not (args.options is None):
+            # Comma separated text -> split
+            options = args.options.split(',')
+            for option in options:
+                if option in result['polybench_options']:  # simple "exists" validation
+                    # Only boolean options can pass this validation
+                    result['polybench_options'][option] = True
+                else:  # may not exist if the text does not match
+                    # Check if it is of type OPT=val
+                    opval = option.split('=')
+                    if len(opval) == 2:
+                        # Ok. Key-value found. Only a few of these exist... check manually
+                        # ... for numerical conversions (currently all integers)
+                        if opval[1].isnumeric():
+                            result['polybench_options'][opval[0]] = int(opval[1])
+
+        # Custom command line options can override output printing (the verify option). Update polybench_options
+        if print_result:
+            result['polybench_options'][PolyBenchOptions.POLYBENCH_DUMP_ARRAYS] = True
+            result['polybench_options'][PolyBenchOptions.POLYBENCH_DUMP_TARGET] = result['output']
+
         return result
 
 
     def run(params: dict) -> None:
         # Set up parameters which may modify execution behavior
         module_name = params['benchmark']
-
-        print_result = params['print']
-        output_file = params['output']
-
+        # Parameters used in case of verification
         verify_result = params['verify']
-        verify_file = params['verify_file']
 
         # Search the module within available implementations
         instance = None
@@ -194,7 +216,7 @@ if __name__ == '__main__':
                 if main_logger.isEnabledFor(logging.INFO):
                     main_logger.info('Module "%s" found. Implementor class is "%s"',
                                      implementation.__module__, implementation.__name__)
-                instance = implementation()  # creates a new instance
+                instance = implementation(params['polybench_options'])  # creates a new instance
 
         # Check if the module was found
         if instance is None:
@@ -205,8 +227,12 @@ if __name__ == '__main__':
         if isinstance(instance, PolyBench):
             if main_logger.isEnabledFor(logging.INFO):
                 main_logger.info(f'Running "{instance.__class__.__name__}"')
-            instance.run(print_result, output_file)
+            instance.run()
+
+            # Verify benchmark's results against other implementation's results
             if verify_result:
+                output_file = params['output']
+                verify_file = params['verify_file']
                 output_file.flush()  # Need to manually flush the file or the compare may fail
                 print(f'Verifying if files "{verify_file}" and "{output_file.name}" match... ', end='')
                 if cmp(verify_file, output_file.name):
