@@ -14,33 +14,30 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench
-from benchmarks.polybench import DatasetSize
+from benchmarks.polybench import PolyBench, PolyBenchParameters
 
 
 class TemplateClass(PolyBench):
 
-    def __init__(self, options: dict, dataset_size: DatasetSize = DatasetSize.LARGE):
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
-        if not isinstance(dataset_size, DatasetSize):
-            raise AssertionError(f'Invalid parameter "dataset_size": "{dataset_size}"')
 
-        # This template assumes a two dimensions data set. Please, adapt to the benchmark's needs.
-        values = {
-            DatasetSize.MINI:           {'M': 8,   'N': 32},
-            DatasetSize.SMALL:          {'M': 16,  'N': 64},
-            DatasetSize.MEDIUM:         {'M': 32,  'N': 128},
-            DatasetSize.LARGE:          {'M': 64,  'N': 256},
-            DatasetSize.EXTRA_LARGE:    {'M': 128, 'N': 512}
-        }
-        parameters = values.get(dataset_size)
-        if not isinstance(parameters, dict):
-            # Could not find a valid dataset size
-            raise NotImplementedError(f'Dataset size "{dataset_size.name}" not implemented.')
+        # Validate inputs
+        if not isinstance(parameters, PolyBenchParameters):
+            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
 
-        # Set up problem size
-        self.M = parameters.get('M')
-        self.N = parameters.get('N')
+        # The parameters hold the necessary information obtained from "polybench.spec" file
+        params = parameters.DataSets.get(self.DATASET_SIZE)
+        if not isinstance(params, dict):
+            raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
+                                      f'for {parameters.Category}/{parameters.Name}.')
+
+        # Adjust the print modifier according to the data type
+        self.set_print_modifier(parameters.DataType)
+
+        # Set up problem size from the given parameters (adapt this part with appropriate parameters)
+        self.M = params.get('M')
+        self.N = params.get('N')
 
     def initialize_array(self, array: list):
         pass
@@ -48,7 +45,7 @@ class TemplateClass(PolyBench):
     def print_array_custom(self, array: list):
         pass
 
-    def kernel(self):
+    def kernel(self, input_data, output_data):
         """The actual kernel implementation.
 
         Modify this method's signature according to the kernel's needs.
@@ -57,14 +54,17 @@ class TemplateClass(PolyBench):
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
+        data = self.create_array(2, [self.N, self.M])
+        output = self.create_array(2, [self.M, self.M])
 
         # Initialize data structures
+        self.initialize_array(data)
 
         # Start instruments
         self.start_instruments()
 
         # Run kernel
-        self.kernel()
+        self.kernel(data, output)
 
         # Stop and print instruments
         self.stop_instruments()
@@ -80,3 +80,4 @@ class TemplateClass(PolyBench):
         #     return [('data_name', data)]
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('results', output)]
