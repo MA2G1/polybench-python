@@ -14,36 +14,32 @@
 
 """Implements the correlation kernel in a PolyBench class."""
 
-from benchmarks.polybench import PolyBench
-from benchmarks.polybench import DatasetSize
+from benchmarks.polybench import PolyBench, PolyBenchParameters
 
 from math import sqrt
 
 
 class Correlation(PolyBench):
 
-    def __init__(self, options: dict, dataset_size: DatasetSize = DatasetSize.LARGE):
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
-        if not isinstance(dataset_size, DatasetSize):
-            raise AssertionError(f'Invalid parameter "dataset_size": "{dataset_size}"')
 
-        values = {
-            DatasetSize.MINI:           {'M': 28,   'N': 32},
-            DatasetSize.SMALL:          {'M': 80,   'N': 100},
-            DatasetSize.MEDIUM:         {'M': 240,  'N': 260},
-            DatasetSize.LARGE:          {'M': 1200, 'N': 1400},
-            DatasetSize.EXTRA_LARGE:    {'M': 2600, 'N': 3000}
-        }
-        parameters = values.get(dataset_size)
-        if not isinstance(parameters, dict):
-            # Could not find a valid dataset size
-            raise NotImplementedError(f'Dataset size "{dataset_size.name}" not implemented.')
+        # Validate inputs
+        if not isinstance(parameters, PolyBenchParameters):
+            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+
+        # The parameters hold the necessary information obtained from "polybench.spec" file
+        params = parameters.DataSets.get(self.DATASET_SIZE)
+        if not isinstance(params, dict):
+            raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
+                                      f'for {parameters.Category}/{parameters.Name}.')
+
+        # Adjust the print modifier according to the data type
+        self.set_print_modifier(parameters.DataType)
 
         # Set up problem size
-        self.M = parameters.get('M')
-        self.N = parameters.get('N')
-
-        self.DATA_PRINT_MODIFIER = '{:0.2f} '
+        self.M = params.get('M')
+        self.N = params.get('N')
 
     def initialize_array(self, array: list):
         for i in range(0, self.N):

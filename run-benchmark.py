@@ -22,7 +22,8 @@ the different kernels."""
 
 # Import the basic elements for searching benchmark implementations
 from benchmarks import benchmark_classes
-from benchmarks.polybench import PolyBench
+from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import DatasetSize
 import benchmarks.polybench_options as polybench_options
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
@@ -115,6 +116,9 @@ if __name__ == '__main__':
                             help='A comma separated list of options passed to PolyBench. Available options can be found'
                                  ' in the README file. Usage: run.py --options '
                                  'POLYBENCH_PADDING_FACTOR=3,POLYBENCH_LINUX_FIFO_SCHEDULER')
+        parser.add_argument('--dataset-size', dest='dataset_size', default=None,
+                            help='Specify a working dataset size to use from "polybench.spec" file. Valid values are:'
+                                 '"MINI", "SMALL", "MEDIUM", "LARGE", "EXTRALARGE".')
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
@@ -199,14 +203,74 @@ if __name__ == '__main__':
             result['polybench_options'][polybench_options.POLYBENCH_DUMP_ARRAYS] = True
             result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output']
 
+        # Append the dataset size if required
+        if not (args.dataset_size is None):
+            # Try to set the enumeration value from user input. On error, an exception is raised.
+            if args.dataset_size not in [DatasetSize.MINI.name, DatasetSize.SMALL.name, DatasetSize.MEDIUM.name,
+                                         DatasetSize.LARGE.name, DatasetSize.EXTRA_LARGE.name]:
+                raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
+            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DatasetSize[args.dataset_size]
+
         return result
 
 
-    def run(params: dict) -> None:
+    def parse_spec_file() -> list:
+        """Parses the polybench.spec file for obtaining all data for customizing a benchmark.
+
+        :return: a list of dictionaries, each one holding all the information for a benchmark.
+        :rtype: list[dict]
+        """
+        result = []
+        with open('polybench.spec') as spec_file:
+            # Since the file is small enough, processing line per line should not have any noticeable performance hit.
+            spec_file.readline()  # skip header line
+            for line in spec_file:
+                dictionary = {}
+                elements = line.split('\t')
+                dictionary['kernel'] = elements[0]
+                dictionary['category'] = elements[1]
+                dictionary['datatype'] = elements[2]
+                dictionary['params'] = elements[3].split(' ')
+                not_numbers = elements[4].split(' ')
+                numbers = []
+                for nn in not_numbers:
+                    numbers.append(int(nn))
+                dictionary['MINI'] = numbers
+
+                not_numbers = elements[5].split(' ')
+                numbers = []
+                for nn in not_numbers:
+                    numbers.append(int(nn))
+                dictionary['SMALL'] = numbers
+
+                not_numbers = elements[6].split(' ')
+                numbers = []
+                for nn in not_numbers:
+                    numbers.append(int(nn))
+                dictionary['MEDIUM'] = numbers
+
+                not_numbers = elements[7].split(' ')
+                numbers = []
+                for nn in not_numbers:
+                    numbers.append(int(nn))
+                dictionary['LARGE'] = numbers
+
+                not_numbers = elements[8].split(' ')
+                numbers = []
+                for nn in not_numbers:
+                    numbers.append(int(nn))
+                dictionary['EXTRALARGE'] = numbers
+
+                result.append(dictionary)
+
+        return result
+
+
+    def run(options: dict, parameters: PolyBenchParameters) -> None:
         # Set up parameters which may modify execution behavior
-        module_name = params['benchmark']
+        module_name = options['benchmark']
         # Parameters used in case of verification
-        verify_result = params['verify']
+        verify_result = options['verify']
 
         # Search the module within available implementations
         instance = None
@@ -216,7 +280,7 @@ if __name__ == '__main__':
                 if main_logger.isEnabledFor(logging.INFO):
                     main_logger.info('Module "%s" found. Implementor class is "%s"',
                                      implementation.__module__, implementation.__name__)
-                instance = implementation(params['polybench_options'])  # creates a new instance
+                instance = implementation(options['polybench_options'], parameters)  # creates a new instance
 
         # Check if the module was found
         if instance is None:
@@ -231,8 +295,8 @@ if __name__ == '__main__':
 
             # Verify benchmark's results against other implementation's results
             if verify_result:
-                output_file = params['output']
-                verify_file = params['verify_file']
+                output_file = options['output']
+                verify_file = options['verify_file']
                 output_file.flush()  # Need to manually flush the file or the compare may fail
                 print(f'Verifying if files "{verify_file}" and "{output_file.name}" match... ', end='')
                 if cmp(verify_file, output_file.name):
@@ -242,5 +306,16 @@ if __name__ == '__main__':
 
 
     # Parse the command line arguments first. We need at least one mandatory parameter.
-    parameters = parse_command_line()
-    run(parameters)
+    opts = parse_command_line()
+    # Parse the spec file for obtaining all of the benchmark's parameters
+    spec_params = parse_spec_file()
+    # Filter out the parameters and pick only the one for the current benchmark
+    bench_params = {}
+    for spec in spec_params:
+        if spec['kernel'] in opts['benchmark']:
+            bench_params = spec
+            break
+    # Create a parameters object for passing to the benchmark
+    params = PolyBenchParameters(bench_params)
+    # Run the benchmark (and other user options)
+    run(opts, params)

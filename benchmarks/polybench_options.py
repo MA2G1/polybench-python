@@ -34,6 +34,11 @@ POLYBENCH_DUMP_TARGET = 'POLYBENCH_DUMP_TARGET'  # Dump user messages into stder
 POLYBENCH_GFLOPS = 'POLYBENCH_GFLOPS'
 POLYBENCH_PAPI_VERBOSE = 'POLYBENCH_PAPI_VERBOSE'
 
+# Custom definitions
+# Custom value for searching actual size. The valie comes from the commandline option --dataset-size and its values are
+# the same as in PolyBench/C: MINI_DATASET, SMALL_DATASET, MEDIUM_DATASET, LARGE_DATASET and EXTRALARGE_DATASET.
+POLYBENCH_DATASET_SIZE = 'POLYBENCH_DATASET_SIZE'
+
 
 polybench_default_options = {
     POLYBENCH_TIME: False,
@@ -50,4 +55,6 @@ polybench_default_options = {
     POLYBENCH_DUMP_TARGET: stderr,
     POLYBENCH_GFLOPS: False,
     POLYBENCH_PAPI_VERBOSE: False,
+    # Custom options
+    POLYBENCH_DATASET_SIZE: None,  # Should be initialized by PolyBench
 }

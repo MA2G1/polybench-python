@@ -42,6 +42,41 @@ class DatasetSize(Enum):
     EXTRA_LARGE = auto()
 
 
+class PolyBenchParameters:
+    """Stores all parameters required for a benchmark, obtained from a spec file.
+    """
+
+    def __init__(self, parameters: dict):
+        """Process the parameters dictionary and store its values on public class fields."""
+        self.Name = parameters['kernel']
+        self.Category = parameters['category']
+
+        if parameters['datatype'] == 'float' or parameters['datatype'] == 'double':
+            self.DataType = float
+        else:
+            self.DataType = int
+
+        mini_dict = {}
+        small_dict = {}
+        medium_dict = {}
+        large_dict = {}
+        extra_large_dict = {}
+        for i in range(0, len(parameters['params'])):
+            mini_dict[parameters['params'][i]] = parameters['MINI'][i]
+            small_dict[parameters['params'][i]] = parameters['SMALL'][i]
+            medium_dict[parameters['params'][i]] = parameters['MEDIUM'][i]
+            large_dict[parameters['params'][i]] = parameters['LARGE'][i]
+            extra_large_dict[parameters['params'][i]] = parameters['EXTRALARGE'][i]
+
+        self.DataSets = {
+            DatasetSize.MINI: mini_dict,
+            DatasetSize.SMALL: small_dict,
+            DatasetSize.MEDIUM: medium_dict,
+            DatasetSize.LARGE: large_dict,
+            DatasetSize.EXTRA_LARGE: extra_large_dict
+        }
+
+
 class PolyBench:
     """This class offers common methods for building new benchmarks.
 
@@ -81,6 +116,7 @@ class PolyBench:
     __papi_counters = []
     __papi_counters_result = []
 
+    DATASET_SIZE = DatasetSize.LARGE  # The default dataset size for selecting bounds
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
@@ -117,6 +153,10 @@ class PolyBench:
             self.POLYBENCH_DUMP_TARGET = options[polybench_options.POLYBENCH_DUMP_TARGET]
             self.POLYBENCH_GFLOPS = options[polybench_options.POLYBENCH_GFLOPS]
             self.POLYBENCH_PAPI_VERBOSE = options[polybench_options.POLYBENCH_PAPI_VERBOSE]
+
+            # The following option is checked for preventing circular references with polybench_options
+            if options[polybench_options.POLYBENCH_DATASET_SIZE] is not None:
+                self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
 
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':
@@ -289,6 +329,18 @@ class PolyBench:
         :param value: the value to be printed.
         """
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
+
+    def set_print_modifier(self, _type):
+        """
+        Adjusts the data print modifier according to the data type.
+        :param _type: The type of the data. Supported types are 'int' and 'float'
+        """
+        if _type == int:
+            self.DATA_PRINT_MODIFIER = '{:d} '
+        elif _type == float:
+            self.DATA_PRINT_MODIFIER = '{:0.2f} '
+        else:
+            raise NotImplementedError(f'Unknown print modifier for type {_type}')
 
     def run(self):
         """Prepares the environment for running a benchmark, executes it and shows the result.
