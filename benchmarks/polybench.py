@@ -13,8 +13,9 @@
 # limitations under the License.
 
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
-import benchmarks.polybench_options as PolyBenchOptions
+import benchmarks.polybench_options as polybench_options
 
+from platform import python_implementation  # Used to determine "inline" C code usage
 from enum import Enum, auto
 from sys import stderr
 from time import time
@@ -22,24 +23,11 @@ from time import time
 # Import requirements for PAPI
 from pypapi import events as papi_events, papi_high
 
-# Import requirements for IL
-import il
-import ctypes
+# Import requirements for inlineasm
+from inlineasm import assemble
+from ctypes import c_ulonglong
 
 import os
-
-
-@il.asm
-def _read_tsc():
-    """
-    .intel_syntax noprefix
-    RDTSC
-    sal     rdx, 32
-    mov     eax, eax
-    or      rax, rdx
-    ret
-    """
-    return ctypes.c_ulonglong
 
 
 class DatasetSize(Enum):
@@ -104,29 +92,62 @@ class PolyBench:
         This method may be called from subclasses during their initialization, so we have to check whether the __init__
         call came from a subclass or not.
         """
+        print(f'{options}')
+
         # Check whether __init__ is being called from a subclass.
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
         # PolyBench. As the documentation states, issubclass(X, X) -> True
         if self.__class__ != PolyBench and issubclass(self.__class__, PolyBench):
             # The options dictionary is expected to have all possible options. Blindly assign values.
             # Typical options
-            self.POLYBENCH_TIME = options[PolyBenchOptions.POLYBENCH_TIME]
-            self.POLYBENCH_DUMP_ARRAYS = options[PolyBenchOptions.POLYBENCH_DUMP_ARRAYS]
+            self.POLYBENCH_TIME = options[polybench_options.POLYBENCH_TIME]
+            self.POLYBENCH_DUMP_ARRAYS = options[polybench_options.POLYBENCH_DUMP_ARRAYS]
 
             # Options that may lead to better performance
-            self.POLYBENCH_PADDING_FACTOR = options[PolyBenchOptions.POLYBENCH_PADDING_FACTOR]
+            self.POLYBENCH_PADDING_FACTOR = options[polybench_options.POLYBENCH_PADDING_FACTOR]
 
             # Timing/profiling options
-            self.POLYBENCH_PAPI = options[PolyBenchOptions.POLYBENCH_PAPI]
-            self.POLYBENCH_CACHE_SIZE_KB = options[PolyBenchOptions.POLYBENCH_CACHE_SIZE_KB]
-            self.POLYBENCH_NO_FLUSH_CACHE = options[PolyBenchOptions.POLYBENCH_NO_FLUSH_CACHE]
-            self.POLYBENCH_CYCLE_ACCURATE_TIMER = options[PolyBenchOptions.POLYBENCH_CYCLE_ACCURATE_TIMER]
-            self.POLYBENCH_LINUX_FIFO_SCHEDULER = options[PolyBenchOptions.POLYBENCH_LINUX_FIFO_SCHEDULER]
+            self.POLYBENCH_PAPI = options[polybench_options.POLYBENCH_PAPI]
+            self.POLYBENCH_CACHE_SIZE_KB = options[polybench_options.POLYBENCH_CACHE_SIZE_KB]
+            self.POLYBENCH_NO_FLUSH_CACHE = options[polybench_options.POLYBENCH_NO_FLUSH_CACHE]
+            self.POLYBENCH_CYCLE_ACCURATE_TIMER = options[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]
+            self.POLYBENCH_LINUX_FIFO_SCHEDULER = options[polybench_options.POLYBENCH_LINUX_FIFO_SCHEDULER]
 
             # Other options (not present in the README file)
-            self.POLYBENCH_DUMP_TARGET = options[PolyBenchOptions.POLYBENCH_DUMP_TARGET]
-            self.POLYBENCH_GFLOPS = options[PolyBenchOptions.POLYBENCH_GFLOPS]
-            self.POLYBENCH_PAPI_VERBOSE = options[PolyBenchOptions.POLYBENCH_PAPI_VERBOSE]
+            self.POLYBENCH_DUMP_TARGET = options[polybench_options.POLYBENCH_DUMP_TARGET]
+            self.POLYBENCH_GFLOPS = options[polybench_options.POLYBENCH_GFLOPS]
+            self.POLYBENCH_PAPI_VERBOSE = options[polybench_options.POLYBENCH_PAPI_VERBOSE]
+
+            # Define in-line C functions for interpreters different than CPython
+            if python_implementation() != 'CPython':
+                from inline import c
+                # Linus scheduler code snippets taken from PolyBench/C
+                linux_shedulers = c('''
+                    #include <sched.h>
+                    void polybench_linux_fifo_scheduler() {
+                        struct sched_param schedParam;
+                        schedParam.sched_priority = sched_get_priority_max (SCHED_FIFO);
+                        sched_setscheduler (0, SCHED_FIFO, &schedParam);
+                    }
+                    void polybench_linux_standard_scheduler() {
+                        struct sched_param schedParam;
+                        schedParam.sched_priority = sched_get_priority_max (SCHED_OTHER);
+                        sched_setscheduler (0, SCHED_OTHER, &schedParam);
+                    }
+                ''')
+                self.__native_linux_fifo_scheduler = linux_shedulers.polybench_linux_fifo_scheduler
+                self.__native_linux_standard_scheduler = linux_shedulers.polybench_linux_standard_scheduler
+
+            # Define the inline-assembly function _read_tsc()
+            asm_code = """
+                 bits 64
+                 RDTSC
+                 sal     rdx, 32
+                 mov     eax, eax
+                 or      rax, rdx
+                 ret
+            """
+            self._read_tsc = assemble(asm_code, c_ulonglong)
         else:
             raise RuntimeError('Abstract classes cannot be instantiated.')
 
@@ -269,7 +290,7 @@ class PolyBench:
         """
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
 
-    def run(self, print_result: bool = False, output=stderr):
+    def run(self):
         """Prepares the environment for running a benchmark, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
@@ -283,7 +304,6 @@ class PolyBench:
         #
         # Perform pre-benchmark actions.
         #
-        self.POLYBENCH_DUMP_TARGET = output  # set the output target for printing messages
 
         #
         # Run the benchmark
@@ -294,7 +314,7 @@ class PolyBench:
         # Perform post-benchmark actions
         #
         self.print_instruments()
-        if print_result:
+        if self.POLYBENCH_DUMP_ARRAYS:
             for out in outputs:
                 self.print_array(out[1], False, out[0])
 
@@ -347,13 +367,13 @@ class PolyBench:
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             self.__timer_start = time()
         else:
-            self.__timer_start = _read_tsc()
+            self.__timer_start = self._read_tsc()
 
     def __timer_stop(self):
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             self.__timer_stop = time()
         else:
-            self.__timer_stop = _read_tsc()
+            self.__timer_stop = self._read_tsc()
         if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
             self.__linux_standard_scheduler()
 
@@ -361,7 +381,7 @@ class PolyBench:
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             print(f'{self.__timer_stop - self.__timer_start:0.6f}')
         else:
-            print(f'{self.__timer_stop - self.__timer_start:Ld}')
+            print(f'{self.__timer_stop - self.__timer_start:d}')
 
     def __papi_init(self):
         """
@@ -455,7 +475,7 @@ class PolyBench:
 
     def __flush_cache(self):
         """Thrashes the cache by generating a very large data structure."""
-        cs = self.POLYBENCH_CACHE_SIZE_KB * 1024 / 8  # divided by sizeof(double)
+        cs = int(self.POLYBENCH_CACHE_SIZE_KB * 1024 / 8)  # divided by sizeof(double)
         flush = [0.0 for x in range(cs)]  # 0.0 forces data type to be a float
         tmp = 0.0
         for i in range(cs):
@@ -463,12 +483,16 @@ class PolyBench:
         assert tmp <= 10.0
 
     def __linux_fifo_scheduler(self):
-        param = os.sched_getparam(0)
-        param.sched_priority = os.sched_get_priority_max(os.SCHED_FIFO)
-        os.sched_setscheduler(0, os.SCHED_FIFO, param)
+        if python_implementation() == 'CPython':
+            param = os.sched_param(os.SCHED_FIFO)
+            os.sched_setscheduler(0, os.SCHED_FIFO, param)
+        else:
+            self.__native_linux_fifo_scheduler()
 
     def __linux_standard_scheduler(self):
-        param = os.sched_getparam(0)
-        param.sched_priority = os.sched_get_priority_max(os.SCHED_OTHER)
-        os.sched_setscheduler(0, os.SCHED_OTHER, param)
+        if python_implementation() == 'CPython':
+            param = os.sched_param(os.SCHED_OTHER)
+            os.sched_setscheduler(0, os.SCHED_OTHER, param)
+        else:
+            self.__native_linux_standard_scheduler()
 

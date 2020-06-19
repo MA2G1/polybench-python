@@ -23,7 +23,7 @@ the different kernels."""
 # Import the basic elements for searching benchmark implementations
 from benchmarks import benchmark_classes
 from benchmarks.polybench import PolyBench
-import benchmarks.polybench_options as PolyBenchOptions
+import benchmarks.polybench_options as polybench_options
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
 import argparse
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
         # Process PolyBench options
         # First import default options into polybench_options
-        result['polybench_options'] = PolyBenchOptions.polybench_default_options.copy()
+        result['polybench_options'] = polybench_options.polybench_default_options.copy()
         if not (args.options is None):
             # Comma separated text -> split
             options = args.options.split(',')
@@ -196,8 +196,8 @@ if __name__ == '__main__':
 
         # Custom command line options can override output printing (the verify option). Update polybench_options
         if print_result:
-            result['polybench_options'][PolyBenchOptions.POLYBENCH_DUMP_ARRAYS] = True
-            result['polybench_options'][PolyBenchOptions.POLYBENCH_DUMP_TARGET] = result['output']
+            result['polybench_options'][polybench_options.POLYBENCH_DUMP_ARRAYS] = True
+            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output']
 
         return result
 

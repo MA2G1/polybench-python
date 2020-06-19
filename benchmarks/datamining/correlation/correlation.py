@@ -22,7 +22,8 @@ from math import sqrt
 
 class Correlation(PolyBench):
 
-    def __init__(self, dataset_size: DatasetSize = DatasetSize.LARGE):
+    def __init__(self, options: dict, dataset_size: DatasetSize = DatasetSize.LARGE):
+        super().__init__(options)
         if not isinstance(dataset_size, DatasetSize):
             raise AssertionError(f'Invalid parameter "dataset_size": "{dataset_size}"')
 
@@ -118,7 +119,6 @@ class Correlation(PolyBench):
 
         # Stop and print instruments
         self.stop_instruments()
-        self.print_instruments()
 
         # Return printable data as a list of tuples ('name', value)
         return [('corr', corr)]
