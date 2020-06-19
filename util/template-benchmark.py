@@ -40,10 +40,16 @@ class TemplateClass(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, array: list):
-        pass
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                array[i][j] = 42
 
     def print_array_custom(self, array: list):
-        pass
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i][j])
 
     def kernel(self, input_data, output_data):
         """The actual kernel implementation.

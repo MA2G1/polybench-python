@@ -161,7 +161,7 @@ class PolyBench:
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':
                 from inline import c
-                # Linus scheduler code snippets taken from PolyBench/C
+                # Linux scheduler code snippets taken from PolyBench/C
                 linux_shedulers = c('''
                     #include <sched.h>
                     void polybench_linux_fifo_scheduler() {
