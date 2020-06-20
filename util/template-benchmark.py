@@ -61,7 +61,7 @@ class TemplateClass(PolyBench):
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        data = self.create_array(2, [self.N, self.M])
+        data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))  # custom initialization value
         output = self.create_array(2, [self.M, self.M])
 
         # Initialize data structures
