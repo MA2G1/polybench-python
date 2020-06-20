@@ -59,7 +59,7 @@ class _2mm(PolyBench):
             for j in range(0, self.NL):
                 D[i][j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
 
-    def print_array_custom(self, D: list):
+    def print_array_custom(self, D: list, name: str):
         for i in range(0, self.NI):
             for j in range(0, self.NL):
                 if (i * self.NI + j) % 20 == 0:

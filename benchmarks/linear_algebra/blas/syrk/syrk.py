@@ -49,7 +49,7 @@ class Syrk(PolyBench):
             for j in range(0, self.N):
                 C[i][j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
 
-    def print_array_custom(self, C: list):
+    def print_array_custom(self, C: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:

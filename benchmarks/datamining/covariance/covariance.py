@@ -46,7 +46,7 @@ class Covariance(PolyBench):
             for j in range(0, self.M):
                 data[i][j] = self.DATA_TYPE(i * j) / self.M
 
-    def print_array_custom(self, cov: list):
+    def print_array_custom(self, cov: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.M):
                 if (i * self.M + j) % 20 == 0:

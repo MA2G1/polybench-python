@@ -54,7 +54,7 @@ class Gemver(PolyBench):
             for j in range(0, self.N):
                 A[i][j] = self.DATA_TYPE(i * j % self.N) / self.N
 
-    def print_array_custom(self, w: list):
+    def print_array_custom(self, w: list, name: str):
         for i in range(0, self.N):
             if i % 20 == 0:
                 self.print_message('\n')

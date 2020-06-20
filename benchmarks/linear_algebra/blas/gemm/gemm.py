@@ -54,7 +54,7 @@ class Gemm(PolyBench):
             for j in range(0, self.NJ):
                 B[i][j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
 
-    def print_array_custom(self, C: list):
+    def print_array_custom(self, C: list, name: str):
         for i in range(0, self.NI):
             for j in range(0, self.NJ):
                 if (i * self.NI + j) % 20 == 0:

@@ -52,7 +52,7 @@ class Symm(PolyBench):
             for j in range(i + 1, self.M):
                 A[i][j] = -999  # regions of arrays that should not be used
 
-    def print_array_custom(self, C: list):
+    def print_array_custom(self, C: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.N):
                 if (i * self.M + j) % 20 == 0:

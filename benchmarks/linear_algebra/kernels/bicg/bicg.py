@@ -17,7 +17,7 @@
 from benchmarks.polybench import PolyBench, PolyBenchParameters
 
 
-class Trmm(PolyBench):
+class Bicg(PolyBench):
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,55 +40,54 @@ class Trmm(PolyBench):
         self.M = params.get('M')
         self.N = params.get('N')
 
-    def initialize_array(self, A: list, B: list):
+    def initialize_array(self, A: list, r: list, p: list):
         for i in range(0, self.M):
-            for j in range(0, i):
-                A[i][j] = self.DATA_TYPE((i+j) % self.M) / self.M
+            p[i] = self.DATA_TYPE(i % self.M) / self.M
 
-            A[i][i] = 1.0
+        for i in range(0, self.N):
+            r[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.M):
+                A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
 
-            for j in range(0, self.N):
-                B[i][j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
+    def print_array_custom(self, array: list, name: list):
+        if name == 's':
+            loop_bound = self.M
+        else:
+            loop_bound = self.N
 
-    def print_array_custom(self, B: list, name: str):
+        for i in range(0, loop_bound):
+            if i % 20 == 0:
+                self.print_message('\n')
+            self.print_value(array[i])
+
+    def kernel(self, A: list, s: list, q: list, p: list, r: list):
+# scop begin
         for i in range(0, self.M):
-            for j in range(0, self.N):
-                if (i * self.M + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(B[i][j])
+            s[i] = 0
 
-    def kernel(self, alpha, A: list, B: list):
-        # BLAS parameters
-        # SIDE   = 'L'
-        # UPLO   = 'L'
-        # TRANSA = 'T'
-        # DIAG   = 'U'
-        # = > Form  B := alpha * A ** T * B.
-        # A is MxM
-        # B is MxN
-# scrop begin
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                for k in range(i + 1, self.M):
-                    B[i][j] += A[k][i] * B[k][j]
-                B[i][j] = alpha * B[i][j]
+        for i in range(0, self.N):
+            q[i] = 0.0
+            for j in range(0, self.M):
+                s[j] = s[j] + r[i] * A[i][j]
+                q[i] = q[i] + A[i][j] * p[j]
 # scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        alpha = 1.5
-
-        A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-        B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        s = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        q = self.create_array(1, [self.N], self.DATA_TYPE(0))
+        p = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        r = self.create_array(1, [self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
-        self.initialize_array(A, B)
+        self.initialize_array(A, r, p)
 
         # Start instruments
         self.start_instruments()
 
         # Run kernel
-        self.kernel(alpha, A, B)
+        self.kernel(A, s, q, p, r)
 
         # Stop and print instruments
         self.stop_instruments()
@@ -104,4 +103,4 @@ class Trmm(PolyBench):
         #     return [('data_name', data)]
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('B', B)]
+        return [('s', s), ('q', q)]

@@ -50,7 +50,7 @@ class Atax(PolyBench):
             for j in range(0, self.N):
                 A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
 
-    def print_array_custom(self, y: list):
+    def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
             if i % 20 == 0:
                 self.print_message('\n')

@@ -46,7 +46,7 @@ class Gesummv(PolyBench):
                 A[i][j] = self.DATA_TYPE((i * j+1) % self.N) / self.N;
                 B[i][j] = self.DATA_TYPE((i * j+2) % self.N) / self.N;
 
-    def print_array_custom(self, y: list):
+    def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
             if i % 20 == 0:
                 self.print_message('\n')

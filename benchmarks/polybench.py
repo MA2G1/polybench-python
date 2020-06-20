@@ -287,7 +287,7 @@ class PolyBench:
         """
         raise NotImplementedError('Initialize array not implemented')
 
-    def print_array_custom(self, array: list):
+    def print_array_custom(self, array: list, dump_message: str = ''):
         """Prints the benchmark array using the same format as in Polybench/C.
 
         If a different format is to be used, this method can be overridden.
@@ -303,14 +303,12 @@ class PolyBench:
         :param string dump_message: (optional; default = '') allows to set a custom message on begin and end dump
         (default) or a custom format defined in the print_array_custom() method.
         """
-        self.print_message('==BEGIN DUMP_ARRAYS==\n')
         self.print_message(f'begin dump: {dump_message}')
         if native_style:
             print(array)
         else:
-            self.print_array_custom(array)
+            self.print_array_custom(array, dump_message)
         self.print_message(f'\nend   dump: {dump_message}\n')
-        self.print_message('==END   DUMP_ARRAYS==\n')
 
     def print_message(self, *args, **kwargs):
         """
@@ -366,8 +364,10 @@ class PolyBench:
         #
         self.print_instruments()
         if self.POLYBENCH_DUMP_ARRAYS:
+            self.print_message('==BEGIN DUMP_ARRAYS==\n')
             for out in outputs:
                 self.print_array(out[1], False, out[0])
+            self.print_message('==END   DUMP_ARRAYS==\n')
             self.POLYBENCH_DUMP_TARGET.flush()
 
     def run_benchmark(self):
