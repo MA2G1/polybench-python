@@ -28,7 +28,7 @@ from pathlib import Path
 import os.path
 import shutil
 
-from string import ascii_lowercase
+from string import ascii_lowercase, digits
 
 
 if __name__ == '__main__':
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
         # Process both benchmark_name and category for making them respect Python module and package naming conventions
         # Modules should be all lowercase and underscores
-        valid_mod_chars = ascii_lowercase + '_'
+        valid_mod_chars = ascii_lowercase + '_' + digits
         valid_pkg_chars = valid_mod_chars + '/'
 
         # Build module name from benchmark's name
