@@ -28,6 +28,8 @@ from pathlib import Path
 import os.path
 import shutil
 
+from string import ascii_lowercase
+
 
 if __name__ == '__main__':
 
@@ -38,6 +40,7 @@ if __name__ == '__main__':
 
     def parse_command_line() -> {
         'benchmark_name': str,
+        'module_name': str,
         'category': str
     }:
         """
@@ -68,12 +71,44 @@ if __name__ == '__main__':
         result = {}
 
         # Process the benchmark name
-        result['benchmark_name'] = str(args.name)
+        bench_name = str(args.name)
 
         # Process the category name. Since the category is optional, we need to check if it exists first
-        result['category'] = None
+        almost_category = None
         if not (args.category is None):
-            result['category'] = str(args.category).replace('.', '/').lower()
+            almost_category = str(args.category).replace('.', '/').lower()
+
+        # Process both benchmark_name and category for making them respect Python module and package naming conventions
+        # Modules should be all lowercase and underscores
+        valid_mod_chars = ascii_lowercase + '_'
+        valid_pkg_chars = valid_mod_chars + '/'
+
+        # Build module name from benchmark's name
+        mod_name = ''
+        for char in bench_name.lower():
+            if char in valid_mod_chars:
+                mod_name += char
+            else:
+                # Check if it is a hypen
+                if char == '-':
+                    mod_name += '_'
+
+        cat_name = ''
+        if not (almost_category is None):
+            for char in almost_category:
+                if char in valid_pkg_chars:
+                    cat_name += char
+                else:
+                    # Check if it is a hyphen
+                    if char == '-':
+                        cat_name += '_'
+
+        result['benchmark_name'] = bench_name
+        result['module_name'] = mod_name
+        if almost_category is None:
+            result['category'] = None
+        else:
+            result['category'] = cat_name
 
         return result
 
