@@ -17,7 +17,7 @@
 from benchmarks.polybench import PolyBench, PolyBenchParameters
 
 
-class _2mm(PolyBench):
+class _3mm(PolyBench):
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,57 +41,65 @@ class _2mm(PolyBench):
         self.NJ = params.get('NJ')
         self.NK = params.get('NK')
         self.NL = params.get('NL')
+        self.NM = params.get('NM')
 
     def initialize_array(self, A: list, B: list, C: list, D: list):
         for i in range(0, self.NI):
             for j in range(0, self.NK):
-                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
 
         for i in range(0, self.NK):
             for j in range(0, self.NJ):
-                B[i][j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+                B[i][j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
 
         for i in range(0, self.NJ):
-            for j in range(0, self.NL):
-                C[i][j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+            for j in range(0, self.NM):
+                C[i][j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
 
-        for i in range(0, self.NI):
+        for i in range(0, self.NM):
             for j in range(0, self.NL):
-                D[i][j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+                D[i][j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
 
-    def print_array_custom(self, D: list):
+    def print_array_custom(self, G: list):
         for i in range(0, self.NI):
             for j in range(0, self.NL):
                 if (i * self.NI + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(D[i][j])
+                self.print_value(G[i][j])
 
-    def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
+    def kernel(self, E: list, A: list, B: list, F: list, C: list, D: list, G: list):
 # scop begin
-        # D := alpha * A * B * C + beta * D
-        for i in range(self.NI):
-            for j in range(self.NJ):
-                tmp[i][j] = 0.0
+        # E := A * B
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                E[i][j] = 0.0
                 for k in range(0, self.NK):
-                    tmp[i][j] += alpha * A[i][k] * B[k][j]
+                    E[i][j] += A[i][k] * B[k][j]
 
+        # F := C * D
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                F[i][j] = 0.0
+                for k in range(0, self.NM):
+                    F[i][j] += C[i][k] * D[k][j]
+
+        # G := E * F
         for i in range(0, self.NI):
             for j in range(0, self.NL):
-                D[i][j] *= beta
+                G[i][j] = 0.0
                 for k in range(0, self.NJ):
-                    D[i][j] += tmp[i][k] * C[k][j]
+                    G[i][j] += E[i][k] * F[k][j]
 # scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        alpha = 1.5
-        beta = 1.2
-
-        tmp = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
+        E = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
         A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
         B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
-        C = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
-        D = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
+        F = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
+        C = self.create_array(2, [self.NJ, self.NM], self.DATA_TYPE(0))
+        D = self.create_array(2, [self.NM, self.NL], self.DATA_TYPE(0))
+        G = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, B, C, D)
@@ -100,7 +108,7 @@ class _2mm(PolyBench):
         self.start_instruments()
 
         # Run kernel
-        self.kernel(alpha, beta, tmp, A, B, C, D)
+        self.kernel(E, A, B, F, C, D, G)
 
         # Stop and print instruments
         self.stop_instruments()
@@ -116,4 +124,4 @@ class _2mm(PolyBench):
         #     return [('data_name', data)]
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('D', D)]
+        return [('G', G)]
