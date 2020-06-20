@@ -44,7 +44,7 @@ class Correlation(PolyBench):
     def initialize_array(self, array: list):
         for i in range(0, self.N):
             for j in range(0, self.M):
-                array[i][j] = ((i * j) / self.M) + i
+                array[i][j] = (self.DATA_TYPE(i * j) / self.M) + i
 
     def print_array_custom(self, array: list):
         for i in range(0, self.M):

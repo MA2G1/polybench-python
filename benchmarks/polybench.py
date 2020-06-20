@@ -128,7 +128,6 @@ class PolyBench:
         This method may be called from subclasses during their initialization, so we have to check whether the __init__
         call came from a subclass or not.
         """
-        print(f'{options}')
 
         # Check whether __init__ is being called from a subclass.
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
@@ -369,6 +368,7 @@ class PolyBench:
         if self.POLYBENCH_DUMP_ARRAYS:
             for out in outputs:
                 self.print_array(out[1], False, out[0])
+            self.POLYBENCH_DUMP_TARGET.flush()
 
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
