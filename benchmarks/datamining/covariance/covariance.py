@@ -33,7 +33,8 @@ class Covariance(PolyBench):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
 
-        # Adjust the print modifier according to the data type
+        # Adjust the data type and print modifier according to the data type
+        self.DATA_TYPE = parameters.DataType
         self.set_print_modifier(parameters.DataType)
 
         # Set up problem size
@@ -76,6 +77,7 @@ class Covariance(PolyBench):
     def run_benchmark(self):
         # Array creation
         float_n = float(self.N)  # we will need a floating point version of N
+
         data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
         cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
         mean = self.create_array(1, [self.M], self.DATA_TYPE(0))

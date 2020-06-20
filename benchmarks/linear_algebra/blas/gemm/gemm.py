@@ -32,7 +32,8 @@ class Gemm(PolyBench):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
 
-        # Adjust the print modifier according to the data type
+        # Adjust the data type and print modifier according to the data type
+        self.DATA_TYPE = parameters.DataType
         self.set_print_modifier(parameters.DataType)
 
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
@@ -72,10 +73,10 @@ class Gemm(PolyBench):
 # scop end
 
     def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
         alpha = 1.5
         beta = 1.2
 
-        # Create data structures (arrays, auxiliary variables, etc.)
         C = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
         A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
         B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))

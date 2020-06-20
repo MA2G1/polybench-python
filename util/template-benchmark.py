@@ -32,7 +32,8 @@ class TemplateClass(PolyBench):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
 
-        # Adjust the print modifier according to the data type
+        # Adjust the data type and print modifier according to the data type
+        self.DATA_TYPE = parameters.DataType
         self.set_print_modifier(parameters.DataType)
 
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)

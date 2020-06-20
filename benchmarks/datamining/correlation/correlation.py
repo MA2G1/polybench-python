@@ -34,24 +34,25 @@ class Correlation(PolyBench):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
 
-        # Adjust the print modifier according to the data type
+        # Adjust the data type and print modifier according to the data type
+        self.DATA_TYPE = parameters.DataType
         self.set_print_modifier(parameters.DataType)
 
         # Set up problem size
         self.M = params.get('M')
         self.N = params.get('N')
 
-    def initialize_array(self, array: list):
+    def initialize_array(self, data: list):
         for i in range(0, self.N):
             for j in range(0, self.M):
-                array[i][j] = (self.DATA_TYPE(i * j) / self.M) + i
+                data[i][j] = (self.DATA_TYPE(i * j) / self.M) + i
 
-    def print_array_custom(self, array: list):
+    def print_array_custom(self, corr: list):
         for i in range(0, self.M):
             for j in range(0, self.M):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(array[i][j])
+                self.print_value(corr[i][j])
 
     def kernel(self, float_n: float, data: list, corr: list, mean: list, stddev: list):
         # NOTE: float_n is the actual value of N as a float, with the intention of keeping it in the stack
@@ -99,6 +100,7 @@ class Correlation(PolyBench):
     def run_benchmark(self):
         # Array creation
         float_n = float(self.N)  # we will need a floating point version of N
+
         data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
         corr = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
         mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
