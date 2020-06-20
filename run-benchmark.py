@@ -167,7 +167,13 @@ if __name__ == '__main__':
 
             file = Path(result['verify']['full_path'])
             if not file.is_file():
-                raise RuntimeError(f'Validation file does not exist: "{result["verify"]["full_path"]}"')
+                # May need to switch underscores into hyphens!
+                # The following replacement wont work with mixed underscores and hyphens on the same path
+                file = Path(result['verify']['full_path'].replace('_', '-'))
+                if not file.is_file():
+                    raise RuntimeError(f'Validation file does not exist: "{result["verify"]["full_path"]}"')
+                # Update the validated full_path
+                result['verify']['full_path'] = result['verify']['full_path'].replace('_', '-')
 
         # Process PolyBench options
         # First import default options into polybench_options
