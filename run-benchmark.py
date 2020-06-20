@@ -143,12 +143,12 @@ if __name__ == '__main__':
         }
         if not (args.verify_file_name is None):
             result['verify']['enabled'] = True
-            result['verify']['file'] = args.verify_file_name
+            result['verify']['file'] = str(args.verify_file_name)
             set_output(args.verify_file_name + '.verify')
             print_result = True
 
         if not (args.verify_polybench_path is None):
-            result['verify']['path'] = args.verify_polybench_path.rstrip('/')
+            result['verify']['path'] = str(args.verify_polybench_path).rstrip('/')
 
         # Check if the arguments passed to "verify*" are valid
         if result['verify']['enabled']:
@@ -157,7 +157,7 @@ if __name__ == '__main__':
                 result['verify']['full_path'] = result['verify']['file']
             else:
                 # PolyBench/C path given. Search the appropriate category/benchmark
-                # splitted_cat will contain, as a list, the category without "benchmarks/" nor "benchmark.py"
+                # split_cat will contain, as a list, the category without "benchmarks/" nor "benchmark.py"
                 split_cat = result['benchmark'].replace('benchmarks.', '').split('.')[:-1]
                 category_name = ''
                 for token in split_cat:
@@ -167,13 +167,27 @@ if __name__ == '__main__':
 
             file = Path(result['verify']['full_path'])
             if not file.is_file():
-                # May need to switch underscores into hyphens!
-                # The following replacement wont work with mixed underscores and hyphens on the same path
-                file = Path(result['verify']['full_path'].replace('_', '-'))
+                # The first check failed. It may mean that the benchmark path was converted to meet Python naming
+                # conventions. There are two things to revert back:
+                # - Underscores at the beginning of a path token must be removed
+                # - Underscores in the middle of a path token may need to be converted into hyphens
+                tokenized_path = result['verify']['full_path'].split('/')
+                validated_tokenized_path = []
+                for token in tokenized_path:
+                    if len(token) > 0:
+                        fixed_token = token.lstrip('_')
+                        fixed_token = fixed_token.replace('_', '-')
+                        validated_tokenized_path.append(fixed_token)
+                    else:
+                        # Probably the path starts with "/". Example: "/home/user"
+                        validated_tokenized_path.append(token)
+                result['verify']['full_path'] = '/'.join(validated_tokenized_path)
+
+                file = Path(result['verify']['full_path'])
                 if not file.is_file():
                     raise RuntimeError(f'Validation file does not exist: "{result["verify"]["full_path"]}"')
                 # Update the validated full_path
-                result['verify']['full_path'] = result['verify']['full_path'].replace('_', '-')
+                result['verify']['full_path'] = result['verify']['full_path']
 
         # Process PolyBench options
         # First import default options into polybench_options

@@ -76,32 +76,48 @@ if __name__ == '__main__':
         # Process the category name. Since the category is optional, we need to check if it exists first
         almost_category = None
         if not (args.category is None):
-            almost_category = str(args.category).replace('.', '/').lower()
+            # Convert "." into "/" if necessary and remove tailing "/" when present
+            almost_category = str(args.category).replace('.', '/').lower().rstrip('/')
 
         # Process both benchmark_name and category for making them respect Python module and package naming conventions
-        # Modules should be all lowercase and underscores
+        # Modules should be all lowercase and underscores.
+        # We can relax this convention by also including digits.
         valid_mod_chars = ascii_lowercase + '_' + digits
-        valid_pkg_chars = valid_mod_chars + '/'
+        valid_pkg_chars = valid_mod_chars
 
-        # Build module name from benchmark's name
-        mod_name = ''
-        for char in bench_name.lower():
-            if char in valid_mod_chars:
-                mod_name += char
+        def fix_naming(input_str: str) -> str:
+            # Initialize fn_result
+            if len(input_str) > 0 and input_str[0].isdigit():
+                fn_result = '_'  # Prepend an underscore
             else:
-                # Check if it is a hypen
-                if char == '-':
-                    mod_name += '_'
+                fn_result = ''
+
+            # Iterate the string and filter out invalid elements
+            for char in input_str.lower():
+                if char in valid_mod_chars:
+                    fn_result += char
+                elif char == '-':
+                    fn_result += '_'
+            return fn_result
+
+        # Class, module and package names cannot start with a number, Must prepend an underscore.
+        if bench_name[0].isdigit():
+            bench_name = '_' + bench_name
+
+        mod_name = fix_naming(bench_name)
 
         cat_name = ''
         if not (almost_category is None):
-            for char in almost_category:
-                if char in valid_pkg_chars:
-                    cat_name += char
-                else:
-                    # Check if it is a hyphen
-                    if char == '-':
-                        cat_name += '_'
+            # Category processing rules are similar to module requirements.
+            # Split the path into smaller chunks so we can reuse code.
+            tokens = almost_category.split('/')
+
+            cat_tokens = []
+            for token in tokens:
+                cat_tokens.append(fix_naming(token))
+
+            # Join the results in a new and valid path
+            cat_name = '/'.join(cat_tokens)
 
         result['benchmark_name'] = bench_name
         result['module_name'] = mod_name
