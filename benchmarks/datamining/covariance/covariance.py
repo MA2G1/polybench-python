@@ -76,9 +76,9 @@ class Covariance(PolyBench):
     def run_benchmark(self):
         # Array creation
         float_n = float(self.N)  # we will need a floating point version of N
-        data = self.create_array(2, [self.N, self.M])
-        cov = self.create_array(2, [self.M, self.M])
-        mean = self.create_array(1, [self.M])
+        data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+        mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
 
         # Initialize array(s)
         self.initialize_array(data)

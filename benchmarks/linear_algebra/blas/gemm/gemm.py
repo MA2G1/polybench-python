@@ -76,9 +76,9 @@ class Gemm(PolyBench):
         beta = 1.2
 
         # Create data structures (arrays, auxiliary variables, etc.)
-        C = self.create_array(2, [self.NI, self.NJ])
-        A = self.create_array(2, [self.NI, self.NK])
-        B = self.create_array(2, [self.NK, self.NJ])
+        C = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(C, A, B)
