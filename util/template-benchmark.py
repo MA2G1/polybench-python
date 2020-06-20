@@ -45,8 +45,13 @@ class TemplateClass(PolyBench):
             for j in range(0, self.M):
                 array[i][j] = 42
 
-    def print_array_custom(self, array: list):
-        for i in range(0, self.M):
+    def print_array_custom(self, array: list, name: str):
+        if name == 'array1':
+            loop_bound = self.M
+        else:
+            loop_bound = self.N
+
+        for i in range(0, loop_bound):
             for j in range(0, self.M):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
