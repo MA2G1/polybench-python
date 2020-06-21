@@ -335,8 +335,9 @@ if __name__ == '__main__':
     spec_params = parse_spec_file()
     # Filter out the parameters and pick only the one for the current benchmark
     bench_params = {}
+    non_pythonic_benchmark = opts['benchmark'].replace('_', '-')
     for spec in spec_params:
-        if spec['kernel'] in opts['benchmark']:
+        if spec['kernel'] in non_pythonic_benchmark:
             bench_params = spec
             break
     # Create a parameters object for passing to the benchmark

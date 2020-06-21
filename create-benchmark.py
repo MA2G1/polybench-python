@@ -71,7 +71,7 @@ if __name__ == '__main__':
         result = {}
 
         # Process the benchmark name
-        bench_name = str(args.name)
+        bench_name = str(args.name).replace('-', '_')
 
         # Process the category name. Since the category is optional, we need to check if it exists first
         almost_category = None
