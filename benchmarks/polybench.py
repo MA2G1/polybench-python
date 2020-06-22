@@ -370,6 +370,10 @@ class PolyBench:
             self.print_message('==END   DUMP_ARRAYS==\n')
             self.POLYBENCH_DUMP_TARGET.flush()
 
+        if self.POLYBENCH_TIME:
+            # Return execution time
+            return self.__timer_result
+
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
 
@@ -417,23 +421,24 @@ class PolyBench:
     def __timer_start(self):
         self.__prepare_instruments()
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            self.__timer_start = time()
+            self.__timer_start_t = time()
         else:
-            self.__timer_start = self._read_tsc()
+            self.__timer_start_t = self._read_tsc()
 
     def __timer_stop(self):
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            self.__timer_stop = time()
+            self.__timer_stop_t = time()
         else:
-            self.__timer_stop = self._read_tsc()
+            self.__timer_stop_t = self._read_tsc()
         if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
             self.__linux_standard_scheduler()
 
     def __timer_print(self):
+        self.__timer_result = self.__timer_stop_t - self.__timer_start_t
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            print(f'{self.__timer_stop - self.__timer_start:0.6f}')
+            print(f'{self.__timer_stop_t - self.__timer_start_t:0.6f}')
         else:
-            print(f'{self.__timer_stop - self.__timer_start:d}')
+            print(f'{self.__timer_stop_t - self.__timer_start_t:d}')
 
     def __papi_init(self):
         """

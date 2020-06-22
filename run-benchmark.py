@@ -88,6 +88,8 @@ if __name__ == '__main__':
                                  'file. Please note that the files containing the results of PolyBench/C must already '
                                  'exist and must be next to where the actual implementation resides. This is the '
                                  'default behavior when PolyBench/C is run from Perl scripts.')
+        parser.add_argument('--time-benchmark', dest='time_benchmark', action='store_true',
+                            help='Performs 5 runs of the benchmark and calculates the mean time.')
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
@@ -221,6 +223,9 @@ if __name__ == '__main__':
                 raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
             result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DatasetSize[args.dataset_size]
 
+        # Process time_benchmark, it is either False or True
+        result['time_benchmark'] = args.time_benchmark
+
         return result
 
 
@@ -322,7 +327,14 @@ if __name__ == '__main__':
 
         # When the module was found, run it.
         if isinstance(instance, PolyBench):
-            instance.run()
+            if options['time_benchmark']:
+                bench_times = []
+                for i in range(0, 5):
+                    bench_times.append(instance.run())
+                import statistics
+                statistics.mean(bench_times)
+            else:
+                instance.run()
 
             # Verify benchmark's results against other implementation's results
             if verify_result:
