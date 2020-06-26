@@ -41,17 +41,30 @@ class Jacobi_2d(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list, B: list):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                A[i][j] = (self.DATA_TYPE(i) * (j+2) + 2) / self.N
-                B[i][j] = (self.DATA_TYPE(i) * (j+3) + 3) / self.N
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    A[self.N * i + j] = (self.DATA_TYPE(i) * (j+2) + 2) / self.N
+                    B[self.N * i + j] = (self.DATA_TYPE(i) * (j+3) + 3) / self.N
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    A[i][j] = (self.DATA_TYPE(i) * (j + 2) + 2) / self.N
+                    B[i][j] = (self.DATA_TYPE(i) * (j + 3) + 3) / self.N
 
     def print_array_custom(self, A: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(A[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[self.N * i + j])
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i][j])
 
     def kernel(self, A: list, B: list):
 # scop begin
@@ -65,22 +78,46 @@ class Jacobi_2d(PolyBench):
                     A[i][j] = 0.2 * (B[i][j] + B[i][j-1] + B[i][1+j] + B[1+i][j] + B[i-1][j])
 # scop end
 
+    def kernel_flat(self, A: list, B: list):
+# scop begin
+        for t in range(0, self.TSTEPS):
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    B[self.N * i + j] = 0.2 * (A[self.N * i + j] + A[self.N * i + j - 1] + A[self.N * i + 1 + j]
+                                               + A[self.N * (1 + i) + j] + A[self.N * (i - 1) + j])
+
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    A[self.N * i + j] = 0.2 * (B[self.N * i + j] + B[self.N * i + j - 1] + B[self.N * i + 1 + j]
+                                               + B[self.N * (1 + i) + j] + B[self.N * (i - 1) + j])
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+            B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, B)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, B)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A, B)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A, B)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -42,16 +42,28 @@ class Covariance(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, data: list):
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                data[i][j] = self.DATA_TYPE(i * j) / self.M
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.M):
+                    data[self.M * i + j] = self.DATA_TYPE(i * j) / self.M
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.M):
+                    data[i][j] = self.DATA_TYPE(i * j) / self.M
 
     def print_array_custom(self, cov: list, name: str):
-        for i in range(0, self.M):
-            for j in range(0, self.M):
-                if (i * self.M + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(cov[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.M):
+                for j in range(0, self.M):
+                    if (i * self.M + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(cov[self.M * i + j])
+        else:
+            for i in range(0, self.M):
+                for j in range(0, self.M):
+                    if (i * self.M + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(cov[self.M * i + j])
 
     def kernel(self, float_n: float, data: list, cov: list, mean: list):
 # scop begin
@@ -74,25 +86,57 @@ class Covariance(PolyBench):
                 cov[j][i] = cov[i][j]
 # scop end
 
+    def kernel_flat(self, float_n: float, data: list, cov: list, mean: list):
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[self.M * i + j]
+            mean[j] /= float_n
+
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[self.M * i + j] -= mean[j]
+
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                cov[self.M * i + j] = 0.0
+                for k in range(0, self.N):
+                    cov[self.M * i + j] += data[self.M * k + i] * data[self.M * k + j]
+                cov[self.M * i + j] /= float_n - 1.0
+                cov[self.M * j + i] = cov[self.M * i + j]
+# scop end
+
     def run_benchmark(self):
         # Array creation
         float_n = float(self.N)  # we will need a floating point version of N
 
-        data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
-        cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-        mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            data = self.create_array(1, [self.N * self.M], self.DATA_TYPE(0))
+            cov = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
+            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        else:
+            data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+            cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
 
         # Initialize array(s)
         self.initialize_array(data)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(float_n, data, cov, mean)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(float_n, data, cov, mean)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(float_n, data, cov, mean)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value)
         return [('cov', cov)]

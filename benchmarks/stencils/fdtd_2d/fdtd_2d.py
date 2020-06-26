@@ -45,19 +45,33 @@ class Fdtd_2d(PolyBench):
         for i in range(0, self.TMAX):
             _fict_[i] = self.DATA_TYPE(i)
 
-        for i in range(0, self.NX):
-            for j in range(0, self.NY):
-                ex[i][j] = (self.DATA_TYPE(i) * (j+1)) / self.NX
-                ey[i][j] = (self.DATA_TYPE(i) * (j+2)) / self.NY
-                hz[i][j] = (self.DATA_TYPE(i) * (j+3)) / self.NX
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.NX):
+                for j in range(0, self.NY):
+                    ex[self.NY * i + j] = (self.DATA_TYPE(i) * (j+1)) / self.NX
+                    ey[self.NY * i + j] = (self.DATA_TYPE(i) * (j+2)) / self.NY
+                    hz[self.NY * i + j] = (self.DATA_TYPE(i) * (j+3)) / self.NX
+        else:
+            for i in range(0, self.NX):
+                for j in range(0, self.NY):
+                    ex[i][j] = (self.DATA_TYPE(i) * (j + 1)) / self.NX
+                    ey[i][j] = (self.DATA_TYPE(i) * (j + 2)) / self.NY
+                    hz[i][j] = (self.DATA_TYPE(i) * (j + 3)) / self.NX
 
     def print_array_custom(self, array: list, name: str):
         # Although this function will print three arrays (ex, ey and hz), the code required is the same.
-        for i in range(0, self.NX):
-            for j in range(0, self.NY):
-                if (i * self.NX + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(array[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.NX):
+                for j in range(0, self.NY):
+                    if (i * self.NX + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(array[self.NY * i + j])
+        else:
+            for i in range(0, self.NX):
+                for j in range(0, self.NY):
+                    if (i * self.NX + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(array[i][j])
 
     def kernel(self, ex: list, ey: list, hz: list, _fict_: list):
 # scop begin
@@ -78,24 +92,54 @@ class Fdtd_2d(PolyBench):
                     hz[i][j] = hz[i][j] - 0.7 * (ex[i][j+1] - ex[i][j] + ey[i+1][j] - ey[i][j])
 # scop end
 
+    def kernel_flat(self, ex: list, ey: list, hz: list, _fict_: list):
+# scop begin
+        for t in range(0, self.TMAX):
+            for j in range(0, self.NY):
+                ey[self.NY * 0 + j] = _fict_[t]
+
+            for i in range(1, self.NX):
+                for j in range(0, self.NY):
+                    ey[self.NY * i + j] = ey[self.NY * i + j] - 0.5 * (hz[self.NY * i + j] - hz[self.NY * (i - 1) + j])
+
+            for i in range(0, self.NX):
+                for j in range(1, self.NY):
+                    ex[self.NY * i + j] = ex[self.NY * i + j] - 0.5 * (hz[self.NY * i + j] - hz[self.NY * i + j - 1])
+
+            for i in range(0, self.NX - 1):
+                for j in range(0, self.NY - 1):
+                    hz[self.NY * i + j] = hz[self.NY * i + j] - 0.7 * (ex[self.NY * i + j + 1] - ex[self.NY * i + j] + ey[self.NY * (i + 1) + j] - ey[self.NY * i + j])
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        ex = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
-        ey = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
-        hz = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            ex = self.create_array(1, [self.NX * self.NY], self.DATA_TYPE(0))
+            ey = self.create_array(1, [self.NX * self.NY], self.DATA_TYPE(0))
+            hz = self.create_array(1, [self.NX * self.NY], self.DATA_TYPE(0))
+        else:
+            ex = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
+            ey = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
+            hz = self.create_array(2, [self.NX, self.NY], self.DATA_TYPE(0))
         _fict_ = self.create_array(1, [self.TMAX], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(ex, ey, hz, _fict_)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(ex, ey, hz, _fict_)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(ex, ey, hz, _fict_)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(ex, ey, hz, _fict_)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

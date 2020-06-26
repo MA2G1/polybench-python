@@ -43,8 +43,12 @@ class Trisolv(PolyBench):
         for i in range(0, self.N):
             x[i] = - 999
             b[i] = i
-            for j in range(0, i + 1):
-                L[i][j] = self.DATA_TYPE(i+self.N-j+1) * 2 / self.N
+            if self.POLYBENCH_FLATTEN_LISTS:
+                for j in range(0, i + 1):
+                    L[self.N * i + j] = self.DATA_TYPE(i+self.N-j+1) * 2 / self.N
+            else:
+                for j in range(0, i + 1):
+                    L[i][j] = self.DATA_TYPE(i + self.N - j + 1) * 2 / self.N
 
     def print_array_custom(self, x: list, name: str):
         for i in range(0, self.N):
@@ -61,23 +65,41 @@ class Trisolv(PolyBench):
             x[i] = x[i] / L[i][i]
 # scop end
 
+    def kernel_flat(self, L: list, x: list, b: list):
+# scop begin
+        for i in range(0, self.N):
+            x[i] = b[i]
+            for j in range(0, i):
+                x[i] -= L[self.N * i + j] * x[j]
+            x[i] = x[i] / L[self.N * i + i]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        L = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            L = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            L = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
         x = self.create_array(1, [self.N], self.DATA_TYPE(0))
         b = self.create_array(1, [self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(L, x, b)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(L, x, b)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(L, x, b)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(L, x, b)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

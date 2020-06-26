@@ -46,9 +46,14 @@ class Atax(PolyBench):
         for i in range(0, self.N):
             x[i] = 1 + (i / fn)
 
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    A[self.N * i + j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
+        else:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
 
     def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
@@ -70,9 +75,26 @@ class Atax(PolyBench):
                 y[j] = y[j] + A[i][j] * tmp[i]
 # scop end
 
+    def kernel_flat(self, A: list, x: list, y: list, tmp: list):
+# scop begin
+        for i in range(0, self.N):
+            y[i] = 0
+
+        for i in range(0, self.M):
+            tmp[i] = 0.0
+            for j in range(0, self.N):
+                tmp[i] = tmp[i] + A[self.N * i + j] * x[j]
+
+            for j in range(0, self.N):
+                y[j] = y[j] + A[self.N * i + j] * tmp[i]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
         x = self.create_array(1, [self.N])
         y = self.create_array(1, [self.N])
         tmp = self.create_array(1, [self.M])
@@ -80,14 +102,20 @@ class Atax(PolyBench):
         # Initialize data structures
         self.initialize_array(A, x)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, x, y, tmp)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A, x, y, tmp)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A, x, y, tmp)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

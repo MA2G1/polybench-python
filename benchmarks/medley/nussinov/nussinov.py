@@ -43,18 +43,31 @@ class Nussinov(PolyBench):
         for i in range(0, self.N):
             seq[i] = (i + 1) % 4  # right side is AGCT/0..3
 
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                table[i][j] = self.DATA_TYPE(0)
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    table[self.N * i + j] = self.DATA_TYPE(0)
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    table[i][j] = self.DATA_TYPE(0)
 
     def print_array_custom(self, table: list, name: str):
         t = 0
-        for i in range(0, self.N):
-            for j in range(i, self.N):
-                if t % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(table[i][j])
-                t += 1
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(i, self.N):
+                    if t % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(table[self.N * i + j])
+                    t += 1
+        else:
+            for i in range(0, self.N):
+                for j in range(i, self.N):
+                    if t % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(table[i][j])
+                    t += 1
 
     def kernel(self, seq: list, table: list):
         # def max_score(s1, s2):
@@ -121,22 +134,84 @@ class Nussinov(PolyBench):
                         table[i][j] = table[i][k] + table[k+1][j]
 # scop end
 
+    def kernel_flat(self, seq: list, table: list):
+# scop begin
+        for i in range(self.N - 1, -1, -1):
+            for j in range(i + 1, self.N):
+                if j - 1 >= 0:
+                    # table[i][j] = max_score(table[i][j], table[i][j - 1])
+                    # NOTE: expanded macro max_score
+                    if table[self.N * i + j] >= table[self.N * i + j - 1]:
+                        table[self.N * i + j] = table[self.N * i + j]
+                    else:
+                        table[self.N * i + j] = table[self.N * i + j - 1]
+                if i + 1 < self.N:
+                    # table[i][j] = max_score(table[i][j], table[i + 1][j])
+                    # NOTE: expanded macro max_score
+                    if table[self.N * i + j] >= table[self.N * (i + 1) + j]:
+                        table[self.N * i + j] = table[self.N * i + j]
+                    else:
+                        table[self.N * i + j] = table[self.N * (i + 1) + j]
+
+                if j - 1 >= 0 and i + 1 < self.N:
+                    # don't allow adjacent elements to bond
+                    if i < j - 1:
+                        # table[i][j] = max_score(table[i][j], table[i + 1][j - 1] + match(seq[i], seq[j]))
+                        # NOTE: expand macro match first
+                        if seq[i] + seq[j] == 3:
+                            # NOTE: expanded macro max_score; match = +1
+                            if table[self.N * i + j] >= table[self.N * (i + 1) + j - 1] + 1:
+                                table[self.N * i + j] = table[self.N * i + j]
+                            else:
+                                table[self.N * i + j] = table[self.N * (i + 1) + j - 1] + 1
+                        else:
+                            # NOTE: expanded macro max_score; match = +0
+                            if table[self.N * i + j] >= table[self.N * (i + 1) + j - 1] + 0:
+                                table[self.N * i + j] = table[self.N * i + j]
+                            else:
+                                table[self.N * i + j] = table[self.N * (i + 1) + j - 1] + 0
+                    else:
+                        # table[i][j] = max_score(table[i][j], table[i + 1][j - 1])
+                        # NOTE: expanded macro max_score
+                        if table[self.N * i + j] >= table[self.N * (i + 1) + j - 1]:
+                            table[self.N * i + j] = table[self.N * i + j]
+                        else:
+                            table[self.N * i + j] = table[self.N * (i + 1) + j - 1]
+
+                for k in range(i + 1, j):
+                    # table[i][j] = max_score(table[i][j], table[i][k] + table[k + 1][j])
+                    # NOTE: expanded macro max_score
+                    if table[self.N * i + j] >= table[self.N * i + k] + table[self.N * (k + 1) + j]:
+                        table[self.N * i + j] = table[self.N * i + j]
+                    else:
+                        table[self.N * i + j] = table[self.N * i + k] + table[self.N * (k + 1) + j]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
         seq = self.create_array(1, [self.N], int(0))  # base type = char; = int in Python
-        table = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            table = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            table = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(seq, table)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(seq, table)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(seq, table)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(seq, table)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

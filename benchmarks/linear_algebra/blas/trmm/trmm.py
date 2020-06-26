@@ -41,21 +41,38 @@ class Trmm(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list, B: list):
-        for i in range(0, self.M):
-            for j in range(0, i):
-                A[i][j] = self.DATA_TYPE((i+j) % self.M) / self.M
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.M):
+                for j in range(0, i):
+                    A[self.M * i + j] = self.DATA_TYPE((i+j) % self.M) / self.M
 
-            A[i][i] = 1.0
+                A[self.M * i + i] = 1.0
 
-            for j in range(0, self.N):
-                B[i][j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
+                for j in range(0, self.N):
+                    B[self.N * i + j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
+        else:
+            for i in range(0, self.M):
+                for j in range(0, i):
+                    A[i][j] = self.DATA_TYPE((i + j) % self.M) / self.M
+
+                A[i][i] = 1.0
+
+                for j in range(0, self.N):
+                    B[i][j] = self.DATA_TYPE((self.N + (i - j)) % self.N) / self.N
 
     def print_array_custom(self, B: list, name: str):
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                if (i * self.M + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(B[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    if (i * self.M + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(B[self.N * i + j])
+        else:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    if (i * self.M + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(B[i][j])
 
     def kernel(self, alpha, A: list, B: list):
         # BLAS parameters
@@ -74,24 +91,43 @@ class Trmm(PolyBench):
                 B[i][j] = alpha * B[i][j]
 # scop end
 
+    def kernel_flat(self, alpha, A: list, B: list):
+# scrop begin
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                for k in range(i + 1, self.M):
+                    B[self.N * i + j] += A[self.M * k + i] * B[self.N * k + j]
+                B[self.N * i + j] = alpha * B[self.N * i + j]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
         alpha = 1.5
 
-        A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-        B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
+            B = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+            B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, B)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(alpha, A, B)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(alpha, A, B)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(alpha, A, B)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

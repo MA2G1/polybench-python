@@ -47,26 +47,48 @@ class Ludcmp(PolyBench):
             y[i] = self.DATA_TYPE(0)
             b[i] = (i + 1) / fn / 2.0 + 4
 
-        for i in range(0, self.N):
-            for j in range(0, i + 1):
-                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    A[self.N * i + j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
-            for j in range(i + 1, self.N):
-                A[i][j] = self.DATA_TYPE(0)
-            A[i][i] = self.DATA_TYPE(1)
+                for j in range(i + 1, self.N):
+                    A[self.N * i + j] = self.DATA_TYPE(0)
+                A[self.N * i + i] = self.DATA_TYPE(1)
 
-        # Make the matrix positive semi-definite.
-        # not necessary for LU, but using same code as cholesky
-        B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+            # Make the matrix positive semi-definite.
+            # not necessary for LU, but using same code as cholesky
+            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
 
-        for t in range(0, self.N):
+            for t in range(0, self.N):
+                for r in range(0, self.N):
+                    for s in range(0, self.N):
+                        B[self.N * r + s] += A[self.N * r + t] * A[self.N * s + t]
+
             for r in range(0, self.N):
                 for s in range(0, self.N):
-                    B[r][s] += A[r][t] * A[s][t]
+                    A[self.N * r + s] = B[self.N * r + s]
+        else:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
-        for r in range(0, self.N):
-            for s in range(0, self.N):
-                A[r][s] = B[r][s]
+                for j in range(i + 1, self.N):
+                    A[i][j] = self.DATA_TYPE(0)
+                A[i][i] = self.DATA_TYPE(1)
+
+            # Make the matrix positive semi-definite.
+            # not necessary for LU, but using same code as cholesky
+            B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+
+            for t in range(0, self.N):
+                for r in range(0, self.N):
+                    for s in range(0, self.N):
+                        B[r][s] += A[r][t] * A[s][t]
+
+            for r in range(0, self.N):
+                for s in range(0, self.N):
+                    A[r][s] = B[r][s]
 
     def print_array_custom(self, x: list, name: str):
         for i in range(0, self.N):
@@ -81,7 +103,7 @@ class Ludcmp(PolyBench):
                 w = A[i][j]
                 for k in range(0, j):
                     w -= A[i][k] * A[k][j]
-                A[i][j] = w / A[j][j];
+                A[i][j] = w / A[j][j]
 
             for j in range(i, self.N):
                 w = A[i][j]
@@ -102,9 +124,40 @@ class Ludcmp(PolyBench):
             x[i] = w / A[i][i]
 # scop end
 
+    def kernel_flat(self, A: list, b: list, x: list, y: list):
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, i):
+                w = A[self.N * i + j]
+                for k in range(0, j):
+                    w -= A[self.N * i + k] * A[self.N * k + j]
+                A[self.N * i + j] = w / A[self.N * j + j]
+
+            for j in range(i, self.N):
+                w = A[self.N * i + j]
+                for k in range(0, i):
+                    w -= A[self.N * i + k] * A[self.N * k + j]
+                A[self.N * i + j] = w
+
+        for i in range(0, self.N):
+            w = b[i]
+            for j in range(0, i):
+                w -= A[self.N * i + j] * y[j]
+            y[i] = w
+
+        for i in range(self.N - 1, -1, -1):
+            w = y[i]
+            for j in range(i + 1, self.N):
+                w -= A[self.N * i + j] * x[j]
+            x[i] = w / A[self.N * i + i]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
         b = self.create_array(1, [self.N], self.DATA_TYPE(0))
         x = self.create_array(1, [self.N], self.DATA_TYPE(0))
         y = self.create_array(1, [self.N], self.DATA_TYPE(0))
@@ -112,14 +165,20 @@ class Ludcmp(PolyBench):
         # Initialize data structures
         self.initialize_array(A, b, x, y)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, b, x, y)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A, b, x, y)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A, b, x, y)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -106,6 +106,9 @@ class PolyBench:
     POLYBENCH_GFLOPS = False
     POLYBENCH_PAPI_VERBOSE = False
 
+    # Custom PolyBench/Python options
+    POLYBENCH_FLATTEN_LISTS = False
+
     # Timing counters
     __polybench_program_total_flops = 0
     __polybench_timer_start = 0
@@ -156,6 +159,9 @@ class PolyBench:
             # The following option is checked for preventing circular references with polybench_options
             if options[polybench_options.POLYBENCH_DATASET_SIZE] is not None:
                 self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
+
+            # PolyBench/Python options
+            self.POLYBENCH_FLATTEN_LISTS = options[polybench_options.POLYBENCH_FLATTEN_LISTS]
 
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':

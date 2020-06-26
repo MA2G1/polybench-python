@@ -39,6 +39,9 @@ POLYBENCH_PAPI_VERBOSE = 'POLYBENCH_PAPI_VERBOSE'
 # the same as in PolyBench/C: MINI_DATASET, SMALL_DATASET, MEDIUM_DATASET, LARGE_DATASET and EXTRALARGE_DATASET.
 POLYBENCH_DATASET_SIZE = 'POLYBENCH_DATASET_SIZE'
 
+# PolyBench/Python options
+POLYBENCH_FLATTEN_LISTS = 'POLYBENCH_FLATTEN_LISTS'  # Flatten list access. This changes everything on implementation
+
 
 polybench_default_options = {
     POLYBENCH_TIME: False,
@@ -57,4 +60,6 @@ polybench_default_options = {
     POLYBENCH_PAPI_VERBOSE: False,
     # Custom options
     POLYBENCH_DATASET_SIZE: None,  # Should be initialized by PolyBench
+    # PolyBench/Python options
+    POLYBENCH_FLATTEN_LISTS: False,
 }

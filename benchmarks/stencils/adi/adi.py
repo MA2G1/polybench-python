@@ -41,16 +41,28 @@ class Adi(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, u: list):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                u[i][j] = self.DATA_TYPE(i + self.N - j) / self.N
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    u[self.N * i + j] = self.DATA_TYPE(i + self.N - j) / self.N
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    u[i][j] = self.DATA_TYPE(i + self.N - j) / self.N
 
     def print_array_custom(self, u: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(u[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(u[self.N * i + j])
+        else:
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(u[i][j])
 
     def kernel(self, u: list, v: list, p: list, q: list):
 #scop begin
@@ -97,24 +109,85 @@ class Adi(PolyBench):
                     u[i][j] = p[i][j] * u[i][j+1] + q[i][j]
 #scop end
 
+    def kernel_flat(self, u: list, v: list, p: list, q: list):
+# scop begin
+        DX = 1.0 / self.DATA_TYPE(self.N)
+        DY = 1.0 / self.DATA_TYPE(self.N)
+        DT = 1.0 / self.DATA_TYPE(self.TSTEPS)
+        B1 = 2.0
+        B2 = 1.0
+        mul1 = B1 * DT / (DX * DX)
+        mul2 = B2 * DT / (DY * DY)
+
+        a = -mul1 / 2.0
+        b = 1.0 + mul1
+        c = a
+        d = -mul2 / 2.0
+        e = 1.0 + mul2
+        f = d
+
+        for t in range(1, self.TSTEPS + 1):
+            # Column Sweep
+            for i in range(1, self.N - 1):
+                v[self.N * 0 + i] = 1.0
+                p[self.N * i + 0] = 0.0
+                q[self.N * i + 0] = v[self.N * 0 + i]
+                for j in range(1, self.N - 1):
+                    p[self.N * i + j] = -c / (a * p[self.N * i + j - 1] + b)
+                    q[self.N * i + j] = (-d * u[self.N * j + i - 1] + (1.0 + 2.0 * d) * u[self.N * j + i]
+                                         - f * u[self.N * j + i + 1] - a * q[self.N * i + j - 1]) / (
+                                a * p[self.N * i + j - 1] + b)
+
+                v[self.N * (self.N - 1) + i] = 1.0
+                for j in range(self.N - 2, 0, -1):
+                    v[self.N * j + i] = p[self.N * i + j] * v[self.N * (j + 1) + i] + q[self.N * i + j]
+
+            # Row Sweep
+            for i in range(1, self.N - 1):
+                u[self.N * i + 0] = 1.0
+                p[self.N * i + 0] = 0.0
+                q[self.N * i + 0] = u[self.N * i + 0]
+                for j in range(1, self.N - 1):
+                    p[self.N * i + j] = -f / (d * p[self.N * i + j - 1] + e)
+                    q[self.N * i + j] = (-a * v[self.N * (i - 1) + j] + (1.0 + 2.0 * a) * v[self.N * i + j]
+                                         - c * v[self.N * (i + 1) + j] - d * q[self.N * i + j - 1]) / (
+                                d * p[self.N * i + j - 1] + e)
+
+                u[self.N * i + self.N - 1] = 1.0
+                for j in range(self.N - 2, 0, -1):
+                    u[self.N * i + j] = p[self.N * i + j] * u[self.N * i + j + 1] + q[self.N * i + j]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        u = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        v = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        p = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        q = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            u = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+            v = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+            p = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+            q = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            u = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+            v = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+            p = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+            q = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(u)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(u, v, p, q)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(u, v, p, q)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(u, v, p, q)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

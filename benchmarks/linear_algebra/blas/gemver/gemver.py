@@ -51,14 +51,19 @@ class Gemver(PolyBench):
             z[i] = ((i + 1) / fn) / 9.0
             x[i] = 0.0
             w[i] = 0.0
-            for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE(i * j % self.N) / self.N
+            if self.POLYBENCH_FLATTEN_LISTS:
+                for j in range(0, self.N):
+                    A[self.N * i + j] = self.DATA_TYPE(i * j % self.N) / self.N
+            else:
+                for j in range(0, self.N):
+                    A[i][j] = self.DATA_TYPE(i * j % self.N) / self.N
 
     def print_array_custom(self, w: list, name: str):
-        for i in range(0, self.N):
-            if i % 20 == 0:
-                self.print_message('\n')
-            self.print_value(w[i])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                if i % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(w[i])
 
     def kernel(self, alpha, beta, A: list, u1: list, v1: list, u2: list, v2: list, w: list, x: list, y: list, z: list):
 # scop begin
@@ -68,14 +73,32 @@ class Gemver(PolyBench):
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                x[i] = x[i] + beta * A[j][i] * y[j];
+                x[i] = x[i] + beta * A[j][i] * y[j]
 
         for i in range(0, self.N):
-            x[i] = x[i] + z[i];
+            x[i] = x[i] + z[i]
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                w[i] = w[i] + alpha * A[i][j] * x[j];
+                w[i] = w[i] + alpha * A[i][j] * x[j]
+# scop end
+
+    def kernel_flat(self, alpha, beta, A: list, u1: list, v1: list, u2: list, v2: list, w: list, x: list, y: list, z: list):
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                A[self.N * i + j] = A[self.N * i + j] + u1[i] * v1[j] + u2[i] * v2[j]
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                x[i] = x[i] + beta * A[self.N * j + i] * y[j]
+
+        for i in range(0, self.N):
+            x[i] = x[i] + z[i]
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                w[i] = w[i] + alpha * A[self.N * i + j] * x[j]
 # scop end
 
     def run_benchmark(self):
@@ -83,7 +106,10 @@ class Gemver(PolyBench):
         alpha = self.DATA_TYPE(1.5)
         beta = self.DATA_TYPE(1.2)
 
-        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
         u1 = self.create_array(1, [self.N], self.DATA_TYPE(0))
         v1 = self.create_array(1, [self.N], self.DATA_TYPE(0))
         u2 = self.create_array(1, [self.N], self.DATA_TYPE(0))
@@ -96,14 +122,20 @@ class Gemver(PolyBench):
         # Initialize data structures
         self.initialize_array(A, u1, v1, u2, v2, w, x, y, z)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(alpha, beta, A, u1, v1, u2, v2, w, x, y, z)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(alpha, beta, A, u1, v1, u2, v2, w, x, y, z)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(alpha, beta, A, u1, v1, u2, v2, w, x, y, z)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -11,3 +11,11 @@ Usage:
 
     - Running an existing benchmark:
         $ python run-benchmark.py kernels/datamining/correlation/correlation.py
+
+    - Running a benchmark with timing support:
+        $ python run-benchmark.py kernels/datamining/correlation/correlation.py --polybench-options POLYBENCH_TIME
+
+    - Verify a benchmark's output against the output of a PolyBench/C benchmark.
+      This option requires that the output files of PolyBench/C were created by running the Perl scripts.
+      The name of the output files must match with the one set by --verify-file
+        $ python run-benchmark.py kernels/datamining/correlation/correlation.py --verify-file output.txt --verify-polybench-path /path/to/root/of/polybench-c

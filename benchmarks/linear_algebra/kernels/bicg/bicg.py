@@ -44,10 +44,16 @@ class Bicg(PolyBench):
         for i in range(0, self.M):
             p[i] = self.DATA_TYPE(i % self.M) / self.M
 
-        for i in range(0, self.N):
-            r[i] = self.DATA_TYPE(i % self.N) / self.N
-            for j in range(0, self.M):
-                A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                r[i] = self.DATA_TYPE(i % self.N) / self.N
+                for j in range(0, self.M):
+                    A[self.M * i + j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
+        else:
+            for i in range(0, self.N):
+                r[i] = self.DATA_TYPE(i % self.N) / self.N
+                for j in range(0, self.M):
+                    A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
 
     def print_array_custom(self, array: list, name: list):
         if name == 's':
@@ -72,9 +78,24 @@ class Bicg(PolyBench):
                 q[i] = q[i] + A[i][j] * p[j]
 # scop end
 
+    def kernel_flat(self, A: list, s: list, q: list, p: list, r: list):
+# scop begin
+        for i in range(0, self.M):
+            s[i] = 0
+
+        for i in range(0, self.N):
+            q[i] = 0.0
+            for j in range(0, self.M):
+                s[j] = s[j] + r[i] * A[self.M * i + j]
+                q[i] = q[i] + A[self.M * i + j] * p[j]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.N * self.M], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
         s = self.create_array(1, [self.M], self.DATA_TYPE(0))
         q = self.create_array(1, [self.N], self.DATA_TYPE(0))
         p = self.create_array(1, [self.M], self.DATA_TYPE(0))
@@ -83,14 +104,20 @@ class Bicg(PolyBench):
         # Initialize data structures
         self.initialize_array(A, r, p)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, s, q, p, r)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A, s, q, p, r)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A, s, q, p, r)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -42,14 +42,24 @@ class Gramschmidt(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list, R: list, Q: list):
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                A[i][j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
-                Q[i][j] = 0.0
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    A[self.N * i + j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                    Q[self.N * i + j] = 0.0
 
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                R[i][j] = 0.0
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    R[self.N * i + j] = 0.0
+        else:
+            for i in range(0, self.M):
+                for j in range(0, self.N):
+                    A[i][j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                    Q[i][j] = 0.0
+
+            for i in range(0, self.N):
+                for j in range(0, self.N):
+                    R[i][j] = 0.0
 
     def print_array_custom(self, array: list, name: str):
         if name == 'R':
@@ -57,11 +67,18 @@ class Gramschmidt(PolyBench):
         else:
             loop_bound = self.M
 
-        for i in range(0, loop_bound):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(array[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, loop_bound):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(array[self.N * i + j])
+        else:
+            for i in range(0, loop_bound):
+                for j in range(0, self.N):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(array[i][j])
 
     def kernel(self, A: list, R: list, Q: list):
 # scop begin
@@ -83,23 +100,54 @@ class Gramschmidt(PolyBench):
                     A[i][j] = A[i][j] - Q[i][k] * R[k][j]
 # scop end
 
+    def kernel_flat(self, A: list, R: list, Q: list):
+# scop begin
+        for k in range(0, self.N):
+            nrm = 0.0
+            for i in range(0, self.M):
+                nrm += A[self.N * i + k] * A[self.N * i + k]
+            R[self.N * k + k] = math.sqrt(nrm)
+
+            for i in range(0, self.M):
+                Q[self.N * i + k] = A[self.N * i + k] / R[self.N * k + k]
+
+            for j in range(k + 1, self.N):
+                R[self.N * k + j] = 0.0
+                for i in range(0, self.M):
+                    R[self.N * k + j] += Q[self.N * i + k] * A[self.N * i + j]
+
+                for i in range(0, self.M):
+                    A[self.N * i + j] = A[self.N * i + j] - Q[self.N * i + k] * R[self.N * k + j]
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
-        R = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        Q = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
+            R = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+            Q = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+            R = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+            Q = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, R, Q)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, R, Q)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A, R, Q)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A, R, Q)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -41,32 +41,60 @@ class Cholesky(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list):
-        for i in range(0, self.N):
-            for j in range(0, i + 1):
-                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    A[self.N * i + j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
-            for j in range(i + 1, self.N):
-                A[i][j] = self.DATA_TYPE(0)
-            A[i][i] = self.DATA_TYPE(1)
+                for j in range(i + 1, self.N):
+                    A[self.N * i + j] = self.DATA_TYPE(0)
+                A[self.N * i + i] = self.DATA_TYPE(1)
 
-        # Make the matrix positive semi-definite.
-        B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+            # Make the matrix positive semi-definite.
+            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
 
-        for t in range(0, self.N):
+            for t in range(0, self.N):
+                for r in range(0, self.N):
+                    for s in range(0, self.N):
+                        B[self.N * r + s] += A[self.N * r + t] * A[self.N * s + t]
+
             for r in range(0, self.N):
                 for s in range(0, self.N):
-                    B[r][s] += A[r][t] * A[s][t]
+                    A[self.N * r + s] = B[self.N * r + s]
+        else:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
-        for r in range(0, self.N):
-            for s in range(0, self.N):
-                A[r][s] = B[r][s]
+                for j in range(i + 1, self.N):
+                    A[i][j] = self.DATA_TYPE(0)
+                A[i][i] = self.DATA_TYPE(1)
+
+            # Make the matrix positive semi-definite.
+            B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+
+            for t in range(0, self.N):
+                for r in range(0, self.N):
+                    for s in range(0, self.N):
+                        B[r][s] += A[r][t] * A[s][t]
+
+            for r in range(0, self.N):
+                for s in range(0, self.N):
+                    A[r][s] = B[r][s]
 
     def print_array_custom(self, A: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, i + 1):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(A[i][j])
+        if self.POLYBENCH_FLATTEN_LISTS:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[self.N * i + j])
+        else:
+            for i in range(0, self.N):
+                for j in range(0, i + 1):
+                    if (i * self.N + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i][j])
 
     def kernel(self, A: list):
 # scop begin
@@ -84,21 +112,46 @@ class Cholesky(PolyBench):
             A[i][i] = math.sqrt(A[i][i])
 # scop end
 
+    def kernel_flat(self, A: list):
+# scop begin
+        for i in range(0, self.N):
+            # j < i
+            for j in range(0, i):
+                for k in range(0, j):
+                    A[self.N * i + j] -= A[self.N * i + k] * A[self.N * j + k]
+                A[self.N * i + j] /= A[self.N * j + j]
+
+            # i == j case
+            for k in range(0, i):
+                A[self.N * i + i] -= A[self.N * i + k] * A[self.N * i + k]
+
+            A[self.N * i + i] = math.sqrt(A[self.N * i + i])
+# scop end
+
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        if self.POLYBENCH_FLATTEN_LISTS:
+            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+        else:
+            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        if self.POLYBENCH_FLATTEN_LISTS:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel_flat(A)
+            # Stop and print instruments
+            self.stop_instruments()
+        else:
+            # Start instruments
+            self.start_instruments()
+            # Run kernel
+            self.kernel(A)
+            # Stop and print instruments
+            self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
