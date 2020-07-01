@@ -43,18 +43,18 @@ class Syrk(PolyBench):
     def initialize_array(self, C: list, A: list):
         for i in range(0, self.N):
             for j in range(0, self.M):
-                A[i][j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                C[i][j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
+                C[i, j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
 
     def print_array_custom(self, C: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(C[i][j])
+                self.print_value(C[i, j])
 
     def kernel(self, alpha, beta, C: list, A: list):
         # BLAS PARAMS
@@ -66,11 +66,11 @@ class Syrk(PolyBench):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, i + 1):
-                C[i][j] *= beta
+                C[i, j] *= beta
 
             for k in range(0, self.M):
                 for j in range(0, i + 1):
-                    C[i][j] += alpha * A[i][k] * A[j][k]
+                    C[i, j] += alpha * A[i, k] * A[j, k]
 # scop end
 
     def run_benchmark(self):

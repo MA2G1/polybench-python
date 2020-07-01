@@ -47,9 +47,9 @@ class Fdtd_2d(PolyBench):
 
         for i in range(0, self.NX):
             for j in range(0, self.NY):
-                ex[i][j] = (self.DATA_TYPE(i) * (j+1)) / self.NX
-                ey[i][j] = (self.DATA_TYPE(i) * (j+2)) / self.NY
-                hz[i][j] = (self.DATA_TYPE(i) * (j+3)) / self.NX
+                ex[i, j] = (self.DATA_TYPE(i) * (j+1)) / self.NX
+                ey[i, j] = (self.DATA_TYPE(i) * (j+2)) / self.NY
+                hz[i, j] = (self.DATA_TYPE(i) * (j+3)) / self.NX
 
     def print_array_custom(self, array: list, name: str):
         # Although this function will print three arrays (ex, ey and hz), the code required is the same.
@@ -57,25 +57,25 @@ class Fdtd_2d(PolyBench):
             for j in range(0, self.NY):
                 if (i * self.NX + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(array[i][j])
+                self.print_value(array[i, j])
 
     def kernel(self, ex: list, ey: list, hz: list, _fict_: list):
 # scop begin
         for t in range(0, self.TMAX):
             for j in range(0, self.NY):
-                ey[0][j] = _fict_[t]
+                ey[0, j] = _fict_[t]
 
             for i in range(1, self.NX):
                 for j in range(0, self.NY):
-                    ey[i][j] = ey[i][j] - 0.5 * (hz[i][j]-hz[i-1][j])
+                    ey[i, j] = ey[i, j] - 0.5 * (hz[i, j]-hz[i-1, j])
 
             for i in range(0, self.NX):
                 for j in range(1, self.NY):
-                    ex[i][j] = ex[i][j] - 0.5 * (hz[i][j]-hz[i][j-1])
+                    ex[i, j] = ex[i, j] - 0.5 * (hz[i, j]-hz[i, j-1])
 
             for i in range(0, self.NX - 1):
                 for j in range(0, self.NY - 1):
-                    hz[i][j] = hz[i][j] - 0.7 * (ex[i][j+1] - ex[i][j] + ey[i+1][j] - ey[i][j])
+                    hz[i, j] = hz[i, j] - 0.7 * (ex[i, j+1] - ex[i, j] + ey[i+1, j] - ey[i, j])
 # scop end
 
     def run_benchmark(self):

@@ -43,11 +43,11 @@ class Cholesky(PolyBench):
     def initialize_array(self, A: list):
         for i in range(0, self.N):
             for j in range(0, i + 1):
-                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+                A[i, j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
             for j in range(i + 1, self.N):
-                A[i][j] = self.DATA_TYPE(0)
-            A[i][i] = self.DATA_TYPE(1)
+                A[i, j] = self.DATA_TYPE(0)
+            A[i, i] = self.DATA_TYPE(1)
 
         # Make the matrix positive semi-definite.
         B = self.create_array(2, [self.N], self.DATA_TYPE(0))
@@ -55,18 +55,18 @@ class Cholesky(PolyBench):
         for t in range(0, self.N):
             for r in range(0, self.N):
                 for s in range(0, self.N):
-                    B[r][s] += A[r][t] * A[s][t]
+                    B[r, s] += A[r, t] * A[s, t]
 
         for r in range(0, self.N):
             for s in range(0, self.N):
-                A[r][s] = B[r][s]
+                A[r, s] = B[r, s]
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.N):
             for j in range(0, i + 1):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(A[i][j])
+                self.print_value(A[i, j])
 
     def kernel(self, A: list):
 # scop begin
@@ -74,14 +74,14 @@ class Cholesky(PolyBench):
             # j < i
             for j in range(0, i):
                 for k in range(0, j):
-                    A[i][j] -= A[i][k] * A[j][k]
-                A[i][j] /= A[j][j]
+                    A[i, j] -= A[i, k] * A[j, k]
+                A[i, j] /= A[j, j]
 
             # i == j case
             for k in range(0, i):
-                A[i][i] -= A[i][k] * A[i][k]
+                A[i, i] -= A[i, k] * A[i, k]
 
-            A[i][i] = math.sqrt(A[i][i])
+            A[i, i] = math.sqrt(A[i, i])
 # scop end
 
     def run_benchmark(self):

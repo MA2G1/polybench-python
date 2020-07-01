@@ -64,7 +64,6 @@ class MultidimensionalArrayListBase(list, MultidimensionalArray):
 
     def __init__(self, shape: tuple, dtype, offset: int = 0):
         MultidimensionalArray.__init__(self, shape, dtype, offset)
-        print(f'Shape={shape}')
         list.__init__(self, self.__list_init__(shape, dtype, offset))
 
     @abstractmethod
@@ -148,6 +147,5 @@ class MultidimensionalArrayListFlattened(MultidimensionalArrayListBase):
 
 class MultidimensionalArrayNumPy(numpy.ndarray, MultidimensionalArray):
 
-    def __init__(self, shape: tuple, dtype, offset: int = 0):
-        for i in range(0, self.size):
-            self.flat[i] = dtype(0)
+    def __init__(self, shape: tuple, dtype, offset, order: str):
+        self.fill(dtype(0))

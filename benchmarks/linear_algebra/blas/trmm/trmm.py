@@ -43,19 +43,19 @@ class Trmm(PolyBench):
     def initialize_array(self, A: list, B: list):
         for i in range(0, self.M):
             for j in range(0, i):
-                A[i][j] = self.DATA_TYPE((i+j) % self.M) / self.M
+                A[i, j] = self.DATA_TYPE((i+j) % self.M) / self.M
 
-            A[i][i] = 1.0
+            A[i, i] = 1.0
 
             for j in range(0, self.N):
-                B[i][j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
+                B[i, j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
 
     def print_array_custom(self, B: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.N):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(B[i][j])
+                self.print_value(B[i, j])
 
     def kernel(self, alpha, A: list, B: list):
         # BLAS parameters
@@ -70,8 +70,8 @@ class Trmm(PolyBench):
         for i in range(0, self.M):
             for j in range(0, self.N):
                 for k in range(i + 1, self.M):
-                    B[i][j] += A[k][i] * B[k][j]
-                B[i][j] = alpha * B[i][j]
+                    B[i, j] += A[k, i] * B[k, j]
+                B[i, j] = alpha * B[i, j]
 # scop end
 
     def run_benchmark(self):

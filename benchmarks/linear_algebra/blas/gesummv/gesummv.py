@@ -41,10 +41,10 @@ class Gesummv(PolyBench):
 
     def initialize_array(self, A: list, B: list, x: list):
         for i in range(0, self.N):
-            x[i] = self.DATA_TYPE(i % self.N) / self.N;
+            x[i] = self.DATA_TYPE(i % self.N) / self.N
             for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE((i * j+1) % self.N) / self.N;
-                B[i][j] = self.DATA_TYPE((i * j+2) % self.N) / self.N;
+                A[i, j] = self.DATA_TYPE((i * j+1) % self.N) / self.N
+                B[i, j] = self.DATA_TYPE((i * j+2) % self.N) / self.N
 
     def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
@@ -58,8 +58,8 @@ class Gesummv(PolyBench):
             tmp[i] = 0.0
             y[i] = 0.0
             for j in range(0, self.N):
-                tmp[i] = A[i][j] * x[j] + tmp[i]
-                y[i] = B[i][j] * x[j] + y[i]
+                tmp[i] = A[i, j] * x[j] + tmp[i]
+                y[i] = B[i, j] * x[j] + y[i]
             y[i] = alpha * tmp[i] + beta * y[i]
 # scop end
 

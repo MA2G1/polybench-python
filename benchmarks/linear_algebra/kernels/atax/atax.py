@@ -48,7 +48,7 @@ class Atax(PolyBench):
 
         for i in range(0, self.M):
             for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
+                A[i, j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
 
     def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
@@ -64,10 +64,10 @@ class Atax(PolyBench):
         for i in range(0, self.M):
             tmp[i] = 0.0
             for j in range(0, self.N):
-                tmp[i] = tmp[i] + A[i][j] * x[j]
+                tmp[i] = tmp[i] + A[i, j] * x[j]
 
             for j in range(0, self.N):
-                y[j] = y[j] + A[i][j] * tmp[i]
+                y[j] = y[j] + A[i, j] * tmp[i]
 # scop end
 
     def run_benchmark(self):

@@ -52,7 +52,7 @@ class Gemver(PolyBench):
             x[i] = 0.0
             w[i] = 0.0
             for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE(i * j % self.N) / self.N
+                A[i, j] = self.DATA_TYPE(i * j % self.N) / self.N
 
     def print_array_custom(self, w: list, name: str):
         for i in range(0, self.N):
@@ -64,18 +64,18 @@ class Gemver(PolyBench):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, self.N):
-                A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j]
+                A[i, j] = A[i, j] + u1[i] * v1[j] + u2[i] * v2[j]
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                x[i] = x[i] + beta * A[j][i] * y[j];
+                x[i] = x[i] + beta * A[j, i] * y[j]
 
         for i in range(0, self.N):
-            x[i] = x[i] + z[i];
+            x[i] = x[i] + z[i]
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                w[i] = w[i] + alpha * A[i][j] * x[j];
+                w[i] = w[i] + alpha * A[i, j] * x[j]
 # scop end
 
     def run_benchmark(self):

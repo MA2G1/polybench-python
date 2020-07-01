@@ -44,7 +44,7 @@ class Heat_3d(PolyBench):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 for k in range(0, self.N):
-                    A[i][j][k] = B[i][j][k] = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
+                    A[i, j, k] = B[i, j, k] = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.N):
@@ -52,7 +52,7 @@ class Heat_3d(PolyBench):
                 for k in range(0, self.N):
                     if (i * self.N * self.N + j * self.N + k) % 20 == 0:
                         self.print_message('\n')
-                    self.print_value(A[i][j][k])
+                    self.print_value(A[i, j, k])
 
     def kernel(self, A: list, B: list):
 # scop begin
@@ -60,18 +60,18 @@ class Heat_3d(PolyBench):
             for i in range(1, self.N - 1):
                 for j in range(1, self.N - 1):
                     for k in range(1, self.N - 1):
-                        B[i][j][k] = (0.125 * (A[i+1][j][k] - 2.0 * A[i][j][k] + A[i-1][j][k])
-                                    + 0.125 * (A[i][j+1][k] - 2.0 * A[i][j][k] + A[i][j-1][k])
-                                    + 0.125 * (A[i][j][k+1] - 2.0 * A[i][j][k] + A[i][j][k-1])
-                                    + A[i][j][k])
+                        B[i, j, k] = (0.125 * (A[i+1, j, k] - 2.0 * A[i, j, k] + A[i-1, j, k])
+                                    + 0.125 * (A[i, j+1, k] - 2.0 * A[i, j, k] + A[i, j-1, k])
+                                    + 0.125 * (A[i, j, k+1] - 2.0 * A[i, j, k] + A[i, j, k-1])
+                                    + A[i, j, k])
 
             for i in range(1, self.N - 1):
                 for j in range(1, self.N - 1):
                     for k in range(1, self.N - 1):
-                        A[i][j][k] = (0.125 * (B[i+1][j][k] - 2.0 * B[i][j][k] + B[i-1][j][k])
-                                    + 0.125 * (B[i][j+1][k] - 2.0 * B[i][j][k] + B[i][j-1][k])
-                                    + 0.125 * (B[i][j][k+1] - 2.0 * B[i][j][k] + B[i][j][k-1])
-                                    + B[i][j][k])
+                        A[i, j, k] = (0.125 * (B[i+1, j, k] - 2.0 * B[i, j, k] + B[i-1, j, k])
+                                    + 0.125 * (B[i, j+1, k] - 2.0 * B[i, j, k] + B[i, j-1, k])
+                                    + 0.125 * (B[i, j, k+1] - 2.0 * B[i, j, k] + B[i, j, k-1])
+                                    + B[i, j, k])
 # scop end
 
     def run_benchmark(self):

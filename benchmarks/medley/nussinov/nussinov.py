@@ -45,7 +45,7 @@ class Nussinov(PolyBench):
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                table[i][j] = self.DATA_TYPE(0)
+                table[i, j] = self.DATA_TYPE(0)
 
     def print_array_custom(self, table: list, name: str):
         t = 0
@@ -53,7 +53,7 @@ class Nussinov(PolyBench):
             for j in range(i, self.N):
                 if t % 20 == 0:
                     self.print_message('\n')
-                self.print_value(table[i][j])
+                self.print_value(table[i, j])
                 t += 1
 
     def kernel(self, seq: list, table: list):
@@ -75,17 +75,17 @@ class Nussinov(PolyBench):
                 if j - 1 >= 0:
                     # table[i][j] = max_score(table[i][j], table[i][j - 1])
                     # NOTE: expanded macro max_score
-                    if table[i][j] >= table[i][j - 1]:
-                       table[i][j] = table[i][j]
+                    if table[i, j] >= table[i, j - 1]:
+                        table[i, j] = table[i, j]
                     else:
-                       table[i][j] = table[i][j - 1]
+                        table[i, j] = table[i, j - 1]
                 if i+1 < self.N:
                     # table[i][j] = max_score(table[i][j], table[i + 1][j])
                     # NOTE: expanded macro max_score
-                    if table[i][j] >= table[i + 1][j]:
-                        table[i][j] = table[i][j]
+                    if table[i, j] >= table[i + 1, j]:
+                        table[i, j] = table[i, j]
                     else:
-                        table[i][j] = table[i + 1][j]
+                        table[i, j] = table[i + 1, j]
 
                 if j - 1 >= 0 and i + 1 < self.N:
                     # don't allow adjacent elements to bond
@@ -94,31 +94,31 @@ class Nussinov(PolyBench):
                         # NOTE: expand macro match first
                         if seq[i] + seq[j] == 3:
                             # NOTE: expanded macro max_score; match = +1
-                            if table[i][j] >= table[i + 1][j - 1] + 1:
-                                table[i][j] = table[i][j]
+                            if table[i, j] >= table[i + 1, j - 1] + 1:
+                                table[i, j] = table[i, j]
                             else:
-                                table[i][j] = table[i + 1][j - 1] + 1
+                                table[i, j] = table[i + 1, j - 1] + 1
                         else:
                             # NOTE: expanded macro max_score; match = +0
-                            if table[i][j] >= table[i + 1][j - 1] + 0:
-                                table[i][j] = table[i][j]
+                            if table[i, j] >= table[i + 1, j - 1] + 0:
+                                table[i, j] = table[i, j]
                             else:
-                                table[i][j] = table[i + 1][j - 1] + 0
+                                table[i, j] = table[i + 1, j - 1] + 0
                     else:
                         # table[i][j] = max_score(table[i][j], table[i + 1][j - 1])
                         # NOTE: expanded macro max_score
-                        if table[i][j] >= table[i+1][j-1]:
-                            table[i][j] = table[i][j]
+                        if table[i, j] >= table[i+1, j-1]:
+                            table[i, j] = table[i, j]
                         else:
-                            table[i][j] = table[i+1][j-1]
+                            table[i, j] = table[i+1, j-1]
 
                 for k in range(i + 1, j):
                     # table[i][j] = max_score(table[i][j], table[i][k] + table[k + 1][j])
                     # NOTE: expanded macro max_score
-                    if table[i][j] >= table[i][k] + table[k+1][j]:
-                        table[i][j] = table[i][j]
+                    if table[i, j] >= table[i, k] + table[k+1, j]:
+                        table[i, j] = table[i, j]
                     else:
-                        table[i][j] = table[i][k] + table[k+1][j]
+                        table[i, j] = table[i, k] + table[k+1, j]
 # scop end
 
     def run_benchmark(self):

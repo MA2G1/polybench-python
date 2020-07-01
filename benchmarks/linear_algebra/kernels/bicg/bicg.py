@@ -47,7 +47,7 @@ class Bicg(PolyBench):
         for i in range(0, self.N):
             r[i] = self.DATA_TYPE(i % self.N) / self.N
             for j in range(0, self.M):
-                A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
+                A[i, j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
 
     def print_array_custom(self, array: list, name: list):
         if name == 's':
@@ -68,8 +68,8 @@ class Bicg(PolyBench):
         for i in range(0, self.N):
             q[i] = 0.0
             for j in range(0, self.M):
-                s[j] = s[j] + r[i] * A[i][j]
-                q[i] = q[i] + A[i][j] * p[j]
+                s[j] = s[j] + r[i] * A[i, j]
+                q[i] = q[i] + A[i, j] * p[j]
 # scop end
 
     def run_benchmark(self):

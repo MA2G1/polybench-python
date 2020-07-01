@@ -43,23 +43,23 @@ class Seidel_2d(PolyBench):
     def initialize_array(self, A: list):
         for i in range(0, self.N):
             for j in range(0, self.N):
-                A[i][j] = (self.DATA_TYPE(i)*(j+2) + 2) / self.N
+                A[i, j] = (self.DATA_TYPE(i)*(j+2) + 2) / self.N
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(A[i][j])
+                self.print_value(A[i, j])
 
     def kernel(self, A: list):
 # scop begin
         for t in range(0, self.TSTEPS - 1):
             for i in range(1, self.N - 2 + 1):
                 for j in range(1, self.N - 2 + 1):
-                    A[i][j] = (A[i - 1][j - 1] + A[i - 1][j] + A[i - 1][j + 1]
-                               + A[i][j - 1] + A[i][j] + A[i][j + 1]
-                               + A[i + 1][j - 1] + A[i + 1][j] + A[i + 1][j + 1]) / 9.0
+                    A[i, j] = (A[i - 1, j - 1] + A[i - 1, j] + A[i - 1, j + 1]
+                               + A[i, j - 1] + A[i, j] + A[i, j + 1]
+                               + A[i + 1, j - 1] + A[i + 1, j] + A[i + 1, j + 1]) / 9.0
 #scop end
 
     def run_benchmark(self):

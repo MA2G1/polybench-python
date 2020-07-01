@@ -44,7 +44,7 @@ class Trisolv(PolyBench):
             x[i] = - 999
             b[i] = i
             for j in range(0, i + 1):
-                L[i][j] = self.DATA_TYPE(i+self.N-j+1) * 2 / self.N
+                L[i, j] = self.DATA_TYPE(i+self.N-j+1) * 2 / self.N
 
     def print_array_custom(self, x: list, name: str):
         for i in range(0, self.N):
@@ -57,8 +57,8 @@ class Trisolv(PolyBench):
         for i in range(0, self.N):
             x[i] = b[i]
             for j in range(0, i):
-                x[i] -= L[i][j] * x[j]
-            x[i] = x[i] / L[i][i]
+                x[i] -= L[i, j] * x[j]
+            x[i] = x[i] / L[i, i]
 # scop end
 
     def run_benchmark(self):

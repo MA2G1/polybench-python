@@ -46,7 +46,7 @@ class Mvt(PolyBench):
             y_1[i] = self.DATA_TYPE((i + 3) % self.N) / self.N
             y_2[i] = self.DATA_TYPE((i + 4) % self.N) / self.N
             for j in range(0, self.N):
-                A[i][j] = self.DATA_TYPE(i * j % self.N) / self.N
+                A[i, j] = self.DATA_TYPE(i * j % self.N) / self.N
 
     def print_array_custom(self, array: list, name: str):
         # Although two arrays will be printed, they share the same format, so there is no need to check which one comes.
@@ -59,11 +59,11 @@ class Mvt(PolyBench):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, self.N):
-                x1[i] = x1[i] + A[i][j] * y_1[j]
+                x1[i] = x1[i] + A[i, j] * y_1[j]
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                x2[i] = x2[i] + A[j][i] * y_2[j]
+                x2[i] = x2[i] + A[j, i] * y_2[j]
 # scop end
 
     def run_benchmark(self):

@@ -46,49 +46,49 @@ class _3mm(PolyBench):
     def initialize_array(self, A: list, B: list, C: list, D: list):
         for i in range(0, self.NI):
             for j in range(0, self.NK):
-                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
 
         for i in range(0, self.NK):
             for j in range(0, self.NJ):
-                B[i][j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
+                B[i, j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
 
         for i in range(0, self.NJ):
             for j in range(0, self.NM):
-                C[i][j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
+                C[i, j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
 
         for i in range(0, self.NM):
             for j in range(0, self.NL):
-                D[i][j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
+                D[i, j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
 
     def print_array_custom(self, G: list, name: str):
         for i in range(0, self.NI):
             for j in range(0, self.NL):
                 if (i * self.NI + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(G[i][j])
+                self.print_value(G[i, j])
 
     def kernel(self, E: list, A: list, B: list, F: list, C: list, D: list, G: list):
 # scop begin
         # E := A * B
         for i in range(0, self.NI):
             for j in range(0, self.NJ):
-                E[i][j] = 0.0
+                E[i, j] = 0.0
                 for k in range(0, self.NK):
-                    E[i][j] += A[i][k] * B[k][j]
+                    E[i, j] += A[i, k] * B[k, j]
 
         # F := C * D
         for i in range(0, self.NJ):
             for j in range(0, self.NL):
-                F[i][j] = 0.0
+                F[i, j] = 0.0
                 for k in range(0, self.NM):
-                    F[i][j] += C[i][k] * D[k][j]
+                    F[i, j] += C[i, k] * D[k, j]
 
         # G := E * F
         for i in range(0, self.NI):
             for j in range(0, self.NL):
-                G[i][j] = 0.0
+                G[i, j] = 0.0
                 for k in range(0, self.NJ):
-                    G[i][j] += E[i][k] * F[k][j]
+                    G[i, j] += E[i, k] * F[k, j]
 # scop end
 
     def run_benchmark(self):

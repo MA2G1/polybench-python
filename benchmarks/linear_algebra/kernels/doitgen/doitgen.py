@@ -45,11 +45,11 @@ class Doitgen(PolyBench):
         for i in range(0, self.NR):
             for j in range(0, self.NQ):
                 for k in range(0, self.NP):
-                    A[i][j][k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
+                    A[i, j, k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
 
         for i in range(0, self.NP):
             for j in range(0, self.NP):
-                C4[i][j] = self.DATA_TYPE(i * j % self.NP) / self.NP
+                C4[i, j] = self.DATA_TYPE(i * j % self.NP) / self.NP
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.NR):
@@ -57,7 +57,7 @@ class Doitgen(PolyBench):
                 for k in range(0, self.NP):
                     if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
                         self.print_message('\n')
-                    self.print_value(A[i][j][k])
+                    self.print_value(A[i, j, k])
 
     def kernel(self, A: list, C4: list, sum: list):
 # scop begin
@@ -66,10 +66,10 @@ class Doitgen(PolyBench):
                 for p in range(0, self.NP):
                     sum[p] = 0.0
                     for s in range(self.NP):
-                        sum[p] += A[r][q][s] * C4[s][p]
+                        sum[p] += A[r, q, s] * C4[s, p]
 
                 for p in range(0, self.NP):
-                    A[r][q][p] = sum[p]
+                    A[r, q, p] = sum[p]
 # scop end
 
     def run_benchmark(self):

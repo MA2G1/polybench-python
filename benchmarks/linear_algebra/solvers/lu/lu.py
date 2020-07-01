@@ -42,11 +42,11 @@ class Lu(PolyBench):
     def initialize_array(self, A: list):
         for i in range(0, self.N):
             for j in range(0, i + 1):
-                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+                A[i, j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
             for j in range(i + 1, self.N):
-                A[i][j] = self.DATA_TYPE(0)
-            A[i][i] = self.DATA_TYPE(1)
+                A[i, j] = self.DATA_TYPE(0)
+            A[i, i] = self.DATA_TYPE(1)
 
         # Make the matrix positive semi-definite.
         # not necessary for LU, but using same code as cholesky
@@ -55,30 +55,30 @@ class Lu(PolyBench):
         for t in range(0, self.N):
             for r in range(0, self.N):
                 for s in range(0, self.N):
-                    B[r][s] += A[r][t] * A[s][t]
+                    B[r, s] += A[r, t] * A[s, t]
 
         for r in range(0, self.N):
             for s in range(0, self.N):
-                A[r][s] = B[r][s]
+                A[r, s] = B[r, s]
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(A[i][j])
+                self.print_value(A[i, j])
 
     def kernel(self, A: list):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, i):
                 for k in range(0, j):
-                    A[i][j] -= A[i][k] * A[k][j]
-                A[i][j] /= A[j][j]
+                    A[i, j] -= A[i, k] * A[k, j]
+                A[i, j] /= A[j, j]
 
             for j in range(i, self.N):
                 for k in range(0, i):
-                    A[i][j] -= A[i][k] * A[k][j]
+                    A[i, j] -= A[i, k] * A[k, j]
 # scop end
 
     def run_benchmark(self):

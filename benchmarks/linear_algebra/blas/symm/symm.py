@@ -43,21 +43,21 @@ class Symm(PolyBench):
     def initialize_array(self, C: list, A: list, B: list):
         for i in range(0, self.M):
             for j in range(0, self.N):
-                C[i][j] = self.DATA_TYPE((i+j) % 100) / self.M
-                B[i][j] = self.DATA_TYPE((self.N+i-j) % 100) / self.M
+                C[i, j] = self.DATA_TYPE((i+j) % 100) / self.M
+                B[i, j] = self.DATA_TYPE((self.N+i-j) % 100) / self.M
 
         for i in range(0, self.M):
             for j in range(0, i + 1):
-                A[i][j] = self.DATA_TYPE((i+j) % 100) / self.M
+                A[i, j] = self.DATA_TYPE((i+j) % 100) / self.M
             for j in range(i + 1, self.M):
-                A[i][j] = -999  # regions of arrays that should not be used
+                A[i, j] = -999  # regions of arrays that should not be used
 
     def print_array_custom(self, C: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.N):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(C[i][j])
+                self.print_value(C[i, j])
 
     def kernel(self, alpha, beta, C: list, A: list, B: list):
         # BLAS PARAMS
@@ -71,11 +71,11 @@ class Symm(PolyBench):
 # scop begin
         for i in range(0, self.M):
             for j in range(0, self.N):
-                temp2 = 0;
+                temp2 = 0
                 for k in range(0, i):
-                    C[k][j] += alpha * B[i][j] * A[i][k]
-                    temp2 += B[k][j] * A[i][k]
-                C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2
+                    C[k, j] += alpha * B[i, j] * A[i, k]
+                    temp2 += B[k, j] * A[i, k]
+                C[i, j] = beta * C[i, j] + alpha * B[i, j] * A[i, i] + alpha * temp2
 # scop end
 
     def run_benchmark(self):

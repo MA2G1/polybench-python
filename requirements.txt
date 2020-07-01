@@ -1,0 +1,3 @@
+inline~=0.0.1
+numpy~=1.18.4
+inlineasm~=0.0.3

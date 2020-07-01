@@ -44,32 +44,32 @@ class Gemm(PolyBench):
     def initialize_array(self, C: list, A: list, B: list):
         for i in range(0, self.NI):
             for j in range(0, self.NJ):
-                C[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+                C[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
 
         for i in range(0, self.NI):
             for j in range (0, self.NK):
-                A[i][j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
+                A[i, j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
 
         for i in range(0, self.NK):
             for j in range(0, self.NJ):
-                B[i][j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
+                B[i, j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
 
     def print_array_custom(self, C: list, name: str):
         for i in range(0, self.NI):
             for j in range(0, self.NJ):
                 if (i * self.NI + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(C[i][j])
+                self.print_value(C[i, j])
 
     def kernel(self, alpha: float, beta: float, C: list, A: list, B: list):
 # scop begin
         for i in range(0, self.NI):
             for j in range(0, self.NJ):
-                C[i][j] *= beta
+                C[i, j] *= beta
 
             for k in range(0, self.NK):
                 for j in range(0, self.NJ):
-                    C[i][j] += alpha * A[i][k] * B[k][j]
+                    C[i, j] += alpha * A[i, k] * B[k, j]
 # scop end
 
     def run_benchmark(self):

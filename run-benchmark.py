@@ -63,7 +63,8 @@ if __name__ == '__main__':
         # Default parameter, mandatory
         parser.add_argument('benchmark', metavar='benchmark.py', nargs='?', default=None,
                             help='The path, relative to this script, to any file having a class implementing Polybench.'
-                                 ' All implementations must reside somewhere inside the "benchmarks" folder.')
+                                 ' All implementations must reside somewhere inside the "benchmarks" folder. The '
+                                 'keyword "all" allows to run all of the benchmarks sequentially.')
         # Optional parameters
         parser.add_argument('--polybench-options', dest='options', default=None,
                             help='A comma separated list of options passed to PolyBench. Available options can be found'
@@ -90,6 +91,9 @@ if __name__ == '__main__':
                                  'default behavior when PolyBench/C is run from Perl scripts.')
         parser.add_argument('--time-benchmark', dest='time_benchmark', action='store_true',
                             help='Performs 5 runs of the benchmark and calculates the mean time.')
+        parser.add_argument('--array-implementation', dest='array_implementation', default=0,
+                            help='Allows to select the internal array implementation in use. 0: Python List; 1: Python '
+                                 'List with flattened indexes; 2: NumPy array. Default: 0.')
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
@@ -143,7 +147,7 @@ if __name__ == '__main__':
         result['verify'] = {
             'enabled': False
         }
-        if not (args.verify_file_name is None):
+        if not (args.verify_file_name is None) and result['benchmark'] != 'all':
             result['verify']['enabled'] = True
             result['verify']['file'] = str(args.verify_file_name)
             set_output(args.verify_file_name + '.verify')
@@ -224,7 +228,17 @@ if __name__ == '__main__':
             result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DatasetSize[args.dataset_size]
 
         # Process time_benchmark, it is either False or True
-        result['time_benchmark'] = args.time_benchmark
+        # This sets the number of times a benchmarks is run. 5 when averaging, 1 when not.
+        result['iterations'] = 5 if args.time_benchmark else 1
+
+        # Process array implementation
+        if str(args.array_implementation).isnumeric():
+            n = int(args.array_implementation)
+            if n < 0 or n > 2:
+                n = 0  # default
+            result['array_implementation'] = n
+        else:
+            raise AssertionError('Argument "array-implementation" must be a number.')
 
         return result
 
@@ -307,52 +321,53 @@ if __name__ == '__main__':
             print('Please, check contents manually.')
 
 
-    def run(options: dict, parameters: PolyBenchParameters) -> None:
+    def run(options: dict, spec_params: dict) -> None:
         # Set up parameters which may modify execution behavior
         module_name = options['benchmark']
         # Parameters used in case of verification
         verify_result = options['verify']
+        iterations = options['iterations']
 
-        # Search the module within available implementations
         instance = None
+        # Search the module within available implementations
         for implementation in benchmark_classes:
-            if implementation.__module__ == module_name:
-                # Module found! Instantiate a new class with it
-                instance = implementation(options['polybench_options'], parameters)  # creates a new instance
+            if module_name == 'all' or implementation.__module__ == module_name:
+                # Module found!
 
-        # Check if the module was found
+                # Retrieve the appropriate parameters for initializing the current class
+                bench_params = {}
+                non_pythonic_benchmark = implementation.__module__.replace('_', '-')
+                for spec in spec_params:
+                    if spec['kernel'] in non_pythonic_benchmark:
+                        bench_params = spec
+                        break
+                # Create a parameters object for passing to the benchmark
+                parameters = PolyBenchParameters(bench_params)
+
+                # Run the benchmark N times. N will be either 1 or a greater number passed by argument.
+                for i in range(iterations):
+                    # Instantiate a new class with it
+                    instance = implementation(options, parameters)  # creates a new instance
+                    # Run the benchmark
+                    instance.run()
+
+                # Verify benchmark's results against other implementation's results
+                if verify_result['enabled']:
+                    validate_benchmark_results(options)
+
+                # Terminate the loop for single-benchmark run
+                if module_name != 'all':
+                    break
+
+        # Check if the module was not found and report an error accordingly
         if instance is None:
             module = module_name.replace(".", "/") + '.py'
             raise NotImplementedError(f'Module {module} not implemented.')
-
-        # When the module was found, run it.
-        if isinstance(instance, PolyBench):
-            if options['time_benchmark']:
-                bench_times = []
-                for i in range(0, 5):
-                    bench_times.append(instance.run())
-                import statistics
-                statistics.mean(bench_times)
-            else:
-                instance.run()
-
-            # Verify benchmark's results against other implementation's results
-            if verify_result:
-                validate_benchmark_results(options)
 
 
     # Parse the command line arguments first. We need at least one mandatory parameter.
     opts = parse_command_line()
     # Parse the spec file for obtaining all of the benchmark's parameters
     spec_params = parse_spec_file()
-    # Filter out the parameters and pick only the one for the current benchmark
-    bench_params = {}
-    non_pythonic_benchmark = opts['benchmark'].replace('_', '-')
-    for spec in spec_params:
-        if spec['kernel'] in non_pythonic_benchmark:
-            bench_params = spec
-            break
-    # Create a parameters object for passing to the benchmark
-    params = PolyBenchParameters(bench_params)
     # Run the benchmark (and other user options)
-    run(opts, params)
+    run(opts, spec_params)

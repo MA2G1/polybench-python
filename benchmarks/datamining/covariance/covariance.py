@@ -44,34 +44,34 @@ class Covariance(PolyBench):
     def initialize_array(self, data: list):
         for i in range(0, self.N):
             for j in range(0, self.M):
-                data[i][j] = self.DATA_TYPE(i * j) / self.M
+                data[i, j] = self.DATA_TYPE(i * j) / self.M
 
     def print_array_custom(self, cov: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.M):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(cov[i][j])
+                self.print_value(cov[i, j])
 
     def kernel(self, float_n: float, data: list, cov: list, mean: list):
 # scop begin
         for j in range(0, self.M):
             mean[j] = 0.0
             for i in range(0, self.N):
-                mean[j] += data[i][j]
+                mean[j] += data[i, j]
             mean[j] /= float_n
 
         for i in range(0, self.N):
             for j in range(0, self.M):
-                data[i][j] -= mean[j]
+                data[i, j] -= mean[j]
 
         for i in range(0, self.M):
             for j in range(0, self.M):
-                cov[i][j] = 0.0
+                cov[i, j] = 0.0
                 for k in range(0, self.N):
-                    cov[i][j] += data[k][i] * data[k][j]
-                cov[i][j] /= float_n - 1.0
-                cov[j][i] = cov[i][j]
+                    cov[i, j] += data[k, i] * data[k, j]
+                cov[i, j] /= float_n - 1.0
+                cov[j, i] = cov[i, j]
 # scop end
 
     def run_benchmark(self):

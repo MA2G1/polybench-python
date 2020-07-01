@@ -29,6 +29,9 @@ from ctypes import c_ulonglong
 
 import os
 
+from packages.array.multidimensional_arrays import MultidimensionalArrayList, MultidimensionalArrayListFlattened, \
+    MultidimensionalArrayNumPy
+
 
 class DatasetSize(Enum):
     """Define the possible values for selecting dataset sizes.
@@ -120,7 +123,7 @@ class PolyBench:
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
-    def __init__(self, options: dict):
+    def __init__(self, commandline_options: dict):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
@@ -129,6 +132,7 @@ class PolyBench:
         call came from a subclass or not.
         """
 
+        options = commandline_options['polybench_options']
         # Check whether __init__ is being called from a subclass.
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
         # PolyBench. As the documentation states, issubclass(X, X) -> True
@@ -156,6 +160,8 @@ class PolyBench:
             # The following option is checked for preventing circular references with polybench_options
             if options[polybench_options.POLYBENCH_DATASET_SIZE] is not None:
                 self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
+
+            self.ARRAY_IMPLEMENTATION = commandline_options['array_implementation']
 
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':
@@ -189,32 +195,6 @@ class PolyBench:
             self._read_tsc = assemble(asm_code, c_ulonglong)
         else:
             raise RuntimeError('Abstract classes cannot be instantiated.')
-
-    def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
-        """Auxiliary recursive method for creating a new array.
-
-        This method assumes that the parameters were previously validated (in the create_array method).
-
-        :param int dimensions: the number of dimensions to create. One dimension creates a list, two a matrix and so on.
-        :param list[int] sizes: a list of integers, each one representing the size of a dimension. The first element of
-            the list represents the size of the first dimension, the second element the size of the second dimension and
-            so on. If this list is smaller than the actual number of dimensions then the last size read is used for the
-            remaining dimensions.
-        :param int initialization_value: (optional; default = 0) the value to use for initializing the arrays during
-            their creation.
-        :return: a list representing an array of N dimensions.
-        :rtype list:
-        """
-        if dimensions == 1:
-            # Just create a list with as many zeros as specified in sizes[0]
-            return [initialization_value for x in range(sizes[0])]
-
-        if len(sizes) == 1:
-            # Generate lists of the same size per dimension
-            return [self.__create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
-        else:
-            # Generate lists with unique sizes per dimension
-            return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
     def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """
@@ -275,8 +255,21 @@ class PolyBench:
         # Add post-padding to every array dimension
         new_sizes = [size + self.POLYBENCH_PADDING_FACTOR for size in sizes]
 
+        # For multidimensional arrays, expand the new_sizes list to match the number of dimensions
+        while len(new_sizes) < dimensions:
+            new_sizes.append(sizes[-1])
+
         # At this point it is safe to say that both dimensions and sizes are valid.
-        return self.__create_array_rec(dimensions, new_sizes, initialization_value)
+        # Use the appropriate "array" implementation.
+        if self.ARRAY_IMPLEMENTATION == 0:
+            return MultidimensionalArrayList(new_sizes, self.DATA_TYPE)
+        elif self.ARRAY_IMPLEMENTATION == 1:
+            return MultidimensionalArrayListFlattened(new_sizes, self.DATA_TYPE)
+        elif self.ARRAY_IMPLEMENTATION == 2:
+            # This uses C-style arrays by default. Change 'C' into 'F' for Fortran arrays.
+            return MultidimensionalArrayNumPy(new_sizes, self.DATA_TYPE, order='C')
+        else:
+            raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 
     def initialize_array(self, array: list):
         """Implements the array initialization.

@@ -45,41 +45,41 @@ class _2mm(PolyBench):
     def initialize_array(self, A: list, B: list, C: list, D: list):
         for i in range(0, self.NI):
             for j in range(0, self.NK):
-                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
 
         for i in range(0, self.NK):
             for j in range(0, self.NJ):
-                B[i][j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+                B[i, j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
 
         for i in range(0, self.NJ):
             for j in range(0, self.NL):
-                C[i][j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+                C[i, j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
 
         for i in range(0, self.NI):
             for j in range(0, self.NL):
-                D[i][j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+                D[i, j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
 
     def print_array_custom(self, D: list, name: str):
         for i in range(0, self.NI):
             for j in range(0, self.NL):
                 if (i * self.NI + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(D[i][j])
+                self.print_value(D[i, j])
 
     def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
 # scop begin
         # D := alpha * A * B * C + beta * D
         for i in range(self.NI):
             for j in range(self.NJ):
-                tmp[i][j] = 0.0
+                tmp[i, j] = 0.0
                 for k in range(0, self.NK):
-                    tmp[i][j] += alpha * A[i][k] * B[k][j]
+                    tmp[i, j] += alpha * A[i, k] * B[k, j]
 
         for i in range(0, self.NI):
             for j in range(0, self.NL):
-                D[i][j] *= beta
+                D[i, j] *= beta
                 for k in range(0, self.NJ):
-                    D[i][j] += tmp[i][k] * C[k][j]
+                    D[i, j] += tmp[i, k] * C[k, j]
 # scop end
 
     def run_benchmark(self):

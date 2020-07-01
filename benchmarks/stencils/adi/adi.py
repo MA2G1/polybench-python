@@ -43,14 +43,14 @@ class Adi(PolyBench):
     def initialize_array(self, u: list):
         for i in range(0, self.N):
             for j in range(0, self.N):
-                u[i][j] = self.DATA_TYPE(i + self.N - j) / self.N
+                u[i, j] = self.DATA_TYPE(i + self.N - j) / self.N
 
     def print_array_custom(self, u: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(u[i][j])
+                self.print_value(u[i, j])
 
     def kernel(self, u: list, v: list, p: list, q: list):
 #scop begin
@@ -72,29 +72,29 @@ class Adi(PolyBench):
         for t in range(1, self.TSTEPS + 1):
             # Column Sweep
             for i in range(1, self.N - 1):
-                v[0][i] = 1.0
-                p[i][0] = 0.0
-                q[i][0] = v[0][i]
+                v[0, i] = 1.0
+                p[i, 0] = 0.0
+                q[i, 0] = v[0, i]
                 for j in range(1, self.N - 1):
-                    p[i][j] = -c / (a * p[i][j-1]+b)
-                    q[i][j] = (-d * u[j][i-1]+(1.0+2.0 * d) * u[j][i] - f * u[j][i+1]-a * q[i][j-1]) / (a * p[i][j-1]+b)
+                    p[i, j] = -c / (a * p[i, j-1]+b)
+                    q[i, j] = (-d * u[j, i-1]+(1.0+2.0 * d) * u[j, i] - f * u[j, i+1]-a * q[i, j-1]) / (a * p[i, j-1]+b)
 
-                v[self.N-1][i] = 1.0
+                v[self.N-1, i] = 1.0
                 for j in range(self.N - 2, 0, -1):
-                    v[j][i] = p[i][j] * v[j+1][i] + q[i][j]
+                    v[j, i] = p[i, j] * v[j+1, i] + q[i, j]
 
             # Row Sweep
             for i in range(1, self.N - 1):
-                u[i][0] = 1.0
-                p[i][0] = 0.0
-                q[i][0] = u[i][0]
+                u[i, 0] = 1.0
+                p[i, 0] = 0.0
+                q[i, 0] = u[i, 0]
                 for j in range(1, self.N - 1):
-                    p[i][j] = -f / (d * p[i][j-1]+e)
-                    q[i][j] = (-a * v[i-1][j]+(1.0+2.0 * a) * v[i][j] - c * v[i+1][j]-d * q[i][j-1]) / (d * p[i][j-1]+e)
+                    p[i, j] = -f / (d * p[i, j-1]+e)
+                    q[i, j] = (-a * v[i-1, j]+(1.0+2.0 * a) * v[i, j] - c * v[i+1, j]-d * q[i, j-1]) / (d * p[i, j-1]+e)
 
-                u[i][self.N-1] = 1.0
+                u[i, self.N-1] = 1.0
                 for j in range(self.N - 2, 0, -1):
-                    u[i][j] = p[i][j] * u[i][j+1] + q[i][j]
+                    u[i, j] = p[i, j] * u[i, j+1] + q[i, j]
 #scop end
 
     def run_benchmark(self):

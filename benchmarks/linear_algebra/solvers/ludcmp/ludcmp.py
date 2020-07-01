@@ -49,11 +49,11 @@ class Ludcmp(PolyBench):
 
         for i in range(0, self.N):
             for j in range(0, i + 1):
-                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+                A[i, j] = -self.DATA_TYPE(j % self.N) / self.N + 1
 
             for j in range(i + 1, self.N):
-                A[i][j] = self.DATA_TYPE(0)
-            A[i][i] = self.DATA_TYPE(1)
+                A[i, j] = self.DATA_TYPE(0)
+            A[i, i] = self.DATA_TYPE(1)
 
         # Make the matrix positive semi-definite.
         # not necessary for LU, but using same code as cholesky
@@ -62,11 +62,11 @@ class Ludcmp(PolyBench):
         for t in range(0, self.N):
             for r in range(0, self.N):
                 for s in range(0, self.N):
-                    B[r][s] += A[r][t] * A[s][t]
+                    B[r, s] += A[r, t] * A[s, t]
 
         for r in range(0, self.N):
             for s in range(0, self.N):
-                A[r][s] = B[r][s]
+                A[r, s] = B[r, s]
 
     def print_array_custom(self, x: list, name: str):
         for i in range(0, self.N):
@@ -78,28 +78,28 @@ class Ludcmp(PolyBench):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, i):
-                w = A[i][j]
+                w = A[i, j]
                 for k in range(0, j):
-                    w -= A[i][k] * A[k][j]
-                A[i][j] = w / A[j][j];
+                    w -= A[i, k] * A[k, j]
+                A[i, j] = w / A[j, j]
 
             for j in range(i, self.N):
-                w = A[i][j]
+                w = A[i, j]
                 for k in range(0, i):
-                    w -= A[i][k] * A[k][j]
-                A[i][j] = w
+                    w -= A[i, k] * A[k, j]
+                A[i, j] = w
 
         for i in range(0, self.N):
             w = b[i]
             for j in range(0, i):
-                w -= A[i][j] * y[j]
+                w -= A[i, j] * y[j]
             y[i] = w
 
         for i in range(self.N - 1, -1, -1):
             w = y[i]
             for j in range(i + 1, self.N):
-                w -= A[i][j] * x[j]
-            x[i] = w / A[i][i]
+                w -= A[i, j] * x[j]
+            x[i] = w / A[i, i]
 # scop end
 
     def run_benchmark(self):

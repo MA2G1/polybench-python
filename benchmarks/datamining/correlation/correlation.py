@@ -45,14 +45,14 @@ class Correlation(PolyBench):
     def initialize_array(self, data: list):
         for i in range(0, self.N):
             for j in range(0, self.M):
-                data[i][j] = (self.DATA_TYPE(i * j) / self.M) + i
+                data[i, j] = (self.DATA_TYPE(i * j) / self.M) + i
 
     def print_array_custom(self, corr: list, name: str):
         for i in range(0, self.M):
             for j in range(0, self.M):
                 if (i * self.M + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(corr[i][j])
+                self.print_value(corr[i, j])
 
     def kernel(self, float_n: float, data: list, corr: list, mean: list, stddev: list):
         # NOTE: float_n is the actual value of N as a float, with the intention of keeping it in the stack
@@ -67,13 +67,13 @@ class Correlation(PolyBench):
         for j in range(0, self.M):
             mean[j] = 0.0
             for i in range(0, self.N):
-                mean[j] += data[i][j]
+                mean[j] += data[i, j]
             mean[j] /= float_n
 
         for j in range(0, self.M):
             stddev[j] = 0.0
             for i in range(0, self.N):
-                stddev[j] += (data[i][j] - mean[j]) * (data[i][j] - mean[j])
+                stddev[j] += (data[i, j] - mean[j]) * (data[i, j] - mean[j])
             stddev[j] /= float_n
             stddev[j] = sqrt(stddev[j])
             # The following in an elegant but usual way to handle near-zero std. dev. values, which below would cause a
@@ -83,18 +83,18 @@ class Correlation(PolyBench):
         # Center and reduce the column vectors.
         for i in range(0, self.N):
             for j in range(0, self.M):
-                data[i][j] -= mean[j]
-                data[i][j] /= sqrt(float_n) * stddev[j]
+                data[i, j] -= mean[j]
+                data[i, j] /= sqrt(float_n) * stddev[j]
 
         # Calculate the m*n correlation matrix.
         for i in range(0, self.M-1):
-            corr[i][i] = 1.0
+            corr[i, i] = 1.0
             for j in range(i+1, self.M):
-                corr[i][j] = 0.0
+                corr[i, j] = 0.0
                 for k in range(0, self.N):
-                    corr[i][j] += (data[k][i] * data[k][j])
-                corr[j][i] = corr[i][j]
-        corr[self.M-1][self.M-1] = 1.0
+                    corr[i, j] += (data[k, i] * data[k, j])
+                corr[j, i] = corr[i, j]
+        corr[self.M-1, self.M-1] = 1.0
 # scop end
 
     def run_benchmark(self):

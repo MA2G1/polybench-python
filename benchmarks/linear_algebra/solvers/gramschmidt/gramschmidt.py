@@ -44,12 +44,12 @@ class Gramschmidt(PolyBench):
     def initialize_array(self, A: list, R: list, Q: list):
         for i in range(0, self.M):
             for j in range(0, self.N):
-                A[i][j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
-                Q[i][j] = 0.0
+                A[i, j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                Q[i, j] = 0.0
 
         for i in range(0, self.N):
             for j in range(0, self.N):
-                R[i][j] = 0.0
+                R[i, j] = 0.0
 
     def print_array_custom(self, array: list, name: str):
         if name == 'R':
@@ -61,26 +61,26 @@ class Gramschmidt(PolyBench):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(array[i][j])
+                self.print_value(array[i, j])
 
     def kernel(self, A: list, R: list, Q: list):
 # scop begin
         for k in range(0, self.N):
             nrm = 0.0
             for i in range(0, self.M):
-                nrm += A[i][k] * A[i][k]
-            R[k][k] = math.sqrt(nrm)
+                nrm += A[i, k] * A[i, k]
+            R[k, k] = math.sqrt(nrm)
 
             for i in range(0, self.M):
-                Q[i][k] = A[i][k] / R[k][k]
+                Q[i, k] = A[i, k] / R[k, k]
 
             for j in range(k + 1, self.N):
-                R[k][j] = 0.0
+                R[k, j] = 0.0
                 for i in range(0, self.M):
-                    R[k][j] += Q[i][k] * A[i][j]
+                    R[k, j] += Q[i, k] * A[i, j]
 
                 for i in range(0, self.M):
-                    A[i][j] = A[i][j] - Q[i][k] * R[k][j]
+                    A[i, j] = A[i, j] - Q[i, k] * R[k, j]
 # scop end
 
     def run_benchmark(self):

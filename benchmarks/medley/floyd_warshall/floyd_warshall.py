@@ -42,26 +42,26 @@ class Floyd_warshall(PolyBench):
     def initialize_array(self, path: list):
         for i in range(0, self.N):
             for j in range(0, self.N):
-                path[i][j] = i * j % 7 + 1
+                path[i, j] = i * j % 7 + 1
                 if (i + j) % 13 == 0 or (i + j) % 7 == 0 or (i + j) % 11 == 0:
-                    path[i][j] = 999
+                    path[i, j] = 999
 
     def print_array_custom(self, path: list, name: str):
         for i in range(0, self.N):
             for j in range(0, self.N):
                 if (i * self.N + j) % 20 == 0:
                     self.print_message('\n')
-                self.print_value(path[i][j])
+                self.print_value(path[i, j])
 
     def kernel(self, path: list):
 # scop begin
         for k in range(0, self.N):
             for i in range(0, self.N):
                 for j in range(0, self.N):
-                    if path[i][j] < path[i][k] + path[k][j]:
-                        path[i][j] = path[i][j]
+                    if path[i, j] < path[i, k] + path[k, j]:
+                        path[i, j] = path[i, j]
                     else:
-                        path[i][j] = path[i][k] + path[k][j]
+                        path[i, j] = path[i, k] + path[k, j]
 # scop end
 
     def run_benchmark(self):
