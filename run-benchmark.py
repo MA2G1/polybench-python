@@ -348,8 +348,15 @@ if __name__ == '__main__':
                 for i in range(iterations):
                     # Instantiate a new class with it
                     instance = implementation(options, parameters)  # creates a new instance
-                    # Run the benchmark
-                    instance.run()
+                    # Run the benchmark. The returned value is a dictionary.
+                    polybench_result = instance.run()
+                    # Perform operations against the output data when the appropriate option is enabled.
+                    if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
+                        # TODO: something useful with available data
+                        print(f'Got time: {polybench_result[polybench_options.POLYBENCH_TIME]}')
+                    if options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+                        # TODO: something useful with available data
+                        print(f'Got PAPI: {polybench_result[polybench_options.POLYBENCH_PAPI]}')
 
                 # Verify benchmark's results against other implementation's results
                 if verify_result['enabled']:

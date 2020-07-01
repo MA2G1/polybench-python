@@ -332,7 +332,7 @@ class PolyBench:
         else:
             raise NotImplementedError(f'Unknown print modifier for type {_type}')
 
-    def run(self):
+    def run(self) -> dict:
         """Prepares the environment for running a benchmark, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
@@ -365,7 +365,11 @@ class PolyBench:
 
         if self.POLYBENCH_TIME:
             # Return execution time
-            return self.__timer_result
+            return {polybench_options.POLYBENCH_TIME: self.polybench_result}
+        if self.POLYBENCH_PAPI:
+            # Return PAPI counters
+            return {polybench_options.POLYBENCH_PAPI: self.polybench_result}
+        return {}
 
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
@@ -427,7 +431,7 @@ class PolyBench:
             self.__linux_standard_scheduler()
 
     def __timer_print(self):
-        self.__timer_result = self.__timer_stop_t - self.__timer_start_t
+        self.polybench_result = self.__timer_stop_t - self.__timer_start_t
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             print(f'{self.__timer_stop_t - self.__timer_start_t:0.6f}')
         else:
@@ -514,6 +518,7 @@ class PolyBench:
                         break
             return result
 
+        self.polybench_result = {}
         counter_names = papi_counter_names()
         for i in range(0, len(self.__papi_counters)):
             if self.POLYBENCH_PAPI_VERBOSE:
@@ -521,6 +526,8 @@ class PolyBench:
             print(f'{self.__papi_counters_result[i]} ', end='')
             if self.POLYBENCH_PAPI_VERBOSE:
                 print()  # new line
+            # Append key-value to result (name-value)
+            self.polybench_result[counter_names[i]] = self.__papi_counters_result[i]
         print()  # new line
 
     def __flush_cache(self):
