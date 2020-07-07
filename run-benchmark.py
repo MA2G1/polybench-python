@@ -21,6 +21,8 @@ the different kernels."""
 
 
 # Import the basic elements for searching benchmark implementations
+from platform import python_implementation
+
 from benchmarks import benchmark_classes
 from benchmarks.polybench import PolyBench, PolyBenchParameters
 from benchmarks.polybench import DatasetSize
@@ -50,7 +52,9 @@ if __name__ == '__main__':
     def parse_command_line() -> {
         'benchmark': str,
         'polybench_options': dict,
-        'verify': bool,
+        'save_results': bool,
+        'verify': dict,
+        'array_implementation': int,
     }:
         """
         Parse command line arguments and generate normalized results.
@@ -73,14 +77,17 @@ if __name__ == '__main__':
         parser.add_argument('--dataset-size', dest='dataset_size', default=None,
                             help='Specify a working dataset size to use from "polybench.spec" file. Valid values are:'
                                  '"MINI", "SMALL", "MEDIUM", "LARGE", "EXTRALARGE".')
-        parser.add_argument('--output', dest='output', default=None,
+        parser.add_argument('--save-results', dest='save_results', action='store_true',
+                            help='Saves execution results into an automatically named file next to the benchmark '
+                                 'implementation.')
+        parser.add_argument('--output-array', dest='output_array', default=None,
                             help='Alias for POLYBENCH_DUMP_TARGET. Also enables POLYBENCH_DUMP_ARRAYS. Prints the '
                                  'benchmark''s result into a file. In order to print into the console use either '
                                  '"stdout" or "stderr".')
         parser.add_argument('--verify-file', dest='verify_file_name', default=None,
                             help='Verify the results of the benchmark against the results stored in a file. This '
-                                 'option enables --output and makes the output file to target a file name whose name '
-                                 'matches the one passed by this argument, appending the .verify suffix. When the '
+                                 'option enables --output-array and makes the output file to target a file name whose '
+                                 'name matches the one passed by this argument, appending the .verify suffix. When the '
                                  'benchmark terminates, its result is compared and a message indicating the comparison '
                                  'result will be printed on "stdout".')
         parser.add_argument('--verify-polybench-path', dest='verify_polybench_path', default=None,
@@ -106,12 +113,14 @@ if __name__ == '__main__':
         result = {
             'benchmark': None,  # should hold a string
             'polybench_options': None,  # should hold a dict with options
+            'save_results': False,  # Allows to save execution results into a file
             'verify': {
                 'enabled': False,  # Controls whether to verify results or not
-                'file': None,      # The file name to verify against
-                'path': None,      # The path to PolyBench/C
-                'full_path': None
+                'file': '',        # The file name to verify against
+                'path': '',        # The path to PolyBench/C
+                'full_path': ''
             },
+            'array_implementation': 0,
         }
 
         # Blindly replace the directory separator character with a commonly supported forward slash.
@@ -136,14 +145,14 @@ if __name__ == '__main__':
                 handle = open(file_name, 'w', newline='\n')
             result['output'] = handle
 
-        # Process the "output" argument
-        if not (args.output is None):
-            set_output(args.output)
+        # Process the "output_array" argument
+        if not (args.output_array is None):
+            set_output(args.output_array)
             print_result = True
         else:
             set_output('stderr')  # Just setting a default value
 
-        # Process the "verify" arguments. May alter 'output'
+        # Process the "verify" arguments. May alter 'output_array'
         result['verify'] = {
             'enabled': False
         }
@@ -159,7 +168,7 @@ if __name__ == '__main__':
         # Check if the arguments passed to "verify*" are valid
         if result['verify']['enabled']:
             # Calculate the full file name (path + file)
-            if result['verify']['path'] is None:
+            if result['verify']['path'] == '':
                 result['verify']['full_path'] = result['verify']['file']
             else:
                 # PolyBench/C path given. Search the appropriate category/benchmark
@@ -217,7 +226,7 @@ if __name__ == '__main__':
         # Custom command line options can override output printing (the verify option). Update polybench_options
         if print_result:
             result['polybench_options'][polybench_options.POLYBENCH_DUMP_ARRAYS] = True
-            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output']
+            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output_array']
 
         # Append the dataset size if required
         if not (args.dataset_size is None):
@@ -239,6 +248,12 @@ if __name__ == '__main__':
             result['array_implementation'] = n
         else:
             raise AssertionError('Argument "array-implementation" must be a number.')
+
+        # Process save results. Only save when results are available (POLYBENCH_TIME or POLYBENCH_PAPI)
+        if args.save_results:
+            opts = result['polybench_options']
+            if opts[polybench_options.POLYBENCH_TIME] or opts[polybench_options.POLYBENCH_PAPI]:
+                result['save_results'] = True
 
         return result
 
@@ -321,7 +336,33 @@ if __name__ == '__main__':
             print('Please, check contents manually.')
 
 
-    def run(options: dict, spec_params: dict) -> None:
+    def get_output_file(module_name: str, options: dict):
+        output_str = module_name
+
+        # Append interpreter name
+        output_str += '_' + python_implementation()
+
+        # Append measurement type information
+        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
+            if options['polybench_options'][polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]:
+                output_str += '_timer-ca'
+            else:
+                output_str += '_timer'
+        elif options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+            output_str += '_papi'
+
+        # Append array type implementation
+        if options['array_implementation'] == 0:
+            output_str += '_array=list'
+        elif options['array_implementation'] == 1:
+            output_str += '_array=flattenedlist'
+        else:
+            output_str += '_array=numpy'
+        output_str += '.output'
+        return open(output_str, 'w')
+
+
+    def run(options: dict, spec_params: list) -> None:
         # Set up parameters which may modify execution behavior
         module_name = options['benchmark']
         # Parameters used in case of verification
@@ -334,6 +375,20 @@ if __name__ == '__main__':
             if module_name == 'all' or implementation.__module__ == module_name:
                 # Module found!
 
+                # TODO: remove this debug messages
+                if True:
+                    print(f'Running {implementation.__module__}')
+                    from datetime import datetime
+                    print(f'  Start time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+                    print(f'  Interpreter: {python_implementation()}')
+                    print(f'  Options: ')
+                    print(f'    (iterations, {iterations})')
+                    ooo = options['polybench_options']
+                    print(f'    {polybench_options.POLYBENCH_TIME, ooo[polybench_options.POLYBENCH_TIME]}')
+                    print(f'    {polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER, ooo[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]}')
+                    print(f'    {polybench_options.POLYBENCH_PAPI, ooo[polybench_options.POLYBENCH_PAPI]}')
+                    print(f'    (Array, {options["array_implementation"]})')
+
                 # Retrieve the appropriate parameters for initializing the current class
                 bench_params = {}
                 non_pythonic_benchmark = implementation.__module__.replace('_', '-')
@@ -344,19 +399,38 @@ if __name__ == '__main__':
                 # Create a parameters object for passing to the benchmark
                 parameters = PolyBenchParameters(bench_params)
 
+                if options['save_results']:
+                    output_f = get_output_file(implementation.__module__.replace('.', '/'), options)
+
+                first_run = True  # For printing available columns on PAPI result
+
                 # Run the benchmark N times. N will be either 1 or a greater number passed by argument.
                 for i in range(iterations):
                     # Instantiate a new class with it
                     instance = implementation(options, parameters)  # creates a new instance
                     # Run the benchmark. The returned value is a dictionary.
                     polybench_result = instance.run()
-                    # Perform operations against the output data when the appropriate option is enabled.
-                    if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
-                        # TODO: something useful with available data
-                        print(f'Got time: {polybench_result[polybench_options.POLYBENCH_TIME]}')
-                    if options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
-                        # TODO: something useful with available data
-                        print(f'Got PAPI: {polybench_result[polybench_options.POLYBENCH_PAPI]}')
+
+                    if options['save_results']:
+                        # Perform operations against the output data when the appropriate option is enabled.
+                        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
+                            output_f.write(f'{polybench_result[polybench_options.POLYBENCH_TIME]}\n')
+                            output_f.flush()
+
+                        if options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+                            if first_run:
+                                # Print headers
+                                for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
+                                    output_f.write(f'{counter}\t')
+                                output_f.write('\n')
+                            for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
+                                output_f.write(f'{polybench_result[polybench_options.POLYBENCH_PAPI][counter]}\t')
+                            output_f.write('\n')
+                            output_f.flush()
+
+                    first_run = False
+                if options['save_results']:
+                    output_f.close()
 
                 # Verify benchmark's results against other implementation's results
                 if verify_result['enabled']:
