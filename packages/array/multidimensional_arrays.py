@@ -148,4 +148,5 @@ class MultidimensionalArrayListFlattened(MultidimensionalArrayListBase):
 class MultidimensionalArrayNumPy(numpy.ndarray, MultidimensionalArray):
 
     def __init__(self, shape: tuple, dtype, offset: int = 0, order: str = 'C'):
+        super(MultidimensionalArrayNumPy, self).__init__(shape, dtype, offset)
         self.fill(dtype(0))
