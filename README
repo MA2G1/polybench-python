@@ -1,13 +1,132 @@
-Requires Python 3.6 or newer (tested on 3.7)
+PolyBench/Python v0.0
+
+Copyright (c) 2020 Universidade da Coruña.
+
+Contact:
+    Miguel Ángel Abella González <miguel.abella@udc.es>
+
+PolyBench/Python is the reimplementation of PolyBench in the Python
+programming language. It is a benchmark suite of 30 numerical computations
+with static control flow, extracted from operations in various application
+domains (linear algebra computations, image processing, physics simulation,
+dynamic programming, statistics, etc.).
+
+
+System requirements:
+------------------------------------------------------------------------------
+Runtime:
+    - Linux operating system running on x86 or AMD64 (the later recommended)
+    - Python 3.6 or newer (CPython 3.8 and PyPy 7.3.1 (Python 3.6.9) tested)
+
+Dependencies:
+    - Python development packages for the selected interpreter(s)
+    - GNU C compiler
+    - NASM
+
+Optional:
+    - Python virtualenv
+
+
+Installation
+------------------------------------------------------------------------------
+This section asumes a Linux distribution. Other Unix-like operating systems
+may work up to some extent, but PolyBench/Python relies on some Linux-specific
+system calls for some of its options which probably will not be available in
+other platforms.
+
+Installing system dependencies using package managers
+
+    On Debian and derivatives (Ubuntu, etc.)
+        $ sudo apt install python3 python3-dev
+        $ sudo apt install pypy3 pypy3-dev
+        $ sudo apt install libpapi-dev
+        $ sudo apt install gcc nasm
+        $ sudo apt install python3-virtualenv
+
+    On Red-Hat based systems (Fedora, CentOS, etc.)
+        $ sudo dnf install python3 python3-devel
+        $ sudo dnf install pypy3 pypy3-devel
+        $ sudo dnf install papi-devel
+        $ sudo dnf install gcc nasm
+        $ sudo dnf install python3-virtualenv
+
+
+Installing PolyBench/Python dependencies
+    At the root level of PolyBench/Python (where this README file is):
+        $ pip install -r requirements.txt --user
+
+    This will install all required packages for the active user. It may take
+    some time for compiling dependencies.
+
+    Alternatively, it is recommended to issue the previous command on a
+    Python virtual environment. At the root level of PolyBench/Python issue
+    the following set of commands for creating a virtual environment for a
+    given interpreter...
+        For CPython3:
+            $ virtualenv -p `which python3` venv-cpython
+        For PyPy3:
+            $ virtualenv -p `which pypy3` venv-pypy
+    Once the virtual environment is created, activate it and issue the
+    instalation commands on it. For instance, using the previously created
+    virtual environment for PyPy3:
+        $ source venv-pypy/bin/activate
+        (venv-pypy) $ pip install -r requirements.txt
+
+    Note: once inside a virtual environment, the command "python" is aliased
+        to the selected interpreted of the virtual environment.
+
 
 Usage:
-    All commands accept help parameters (-h and --help)
+------------------------------------------------------------------------------
+There are two main tools in PolyBench/Python, both implemented in Python. Both
+are command line tools accepting the help option (both -h and --help) which
+prints some useful usage information and available options.
 
-    - Create a new benchmark:
-        $ python create-benchmark.py -C category.subcategory -N KernelName
+create-benchmark.py
+    Allows to create a new benchmark given a benchmark name and a category
+    where to locate it. For instance, for creating the "correlation" benchmark
+    on the "datamining" category:
+        $ python create-benchmark.py -C datamining/correlation -N Correlation
 
+run-benchmark.py
+    Allows to run one or all benchmarks by issuing a single command, accepting
+    a set of options which may alter the execution behavior.
+
+    Some usage examples of this tool:
     - List existing benchmarks:
         $ python run-benchmark.py
 
     - Running an existing benchmark:
-        $ python run-benchmark.py kernels/datamining/correlation/correlation.py
+        $ python run-benchmark.py benchmarks/datamining/correlation/correlation.py
+
+    - Running an existing benchmark and printing the execution time:
+        $ python run-benchmark.py benchmarks/datamining/correlation/correlation.py --polybench-options POLYBENCH_TIME
+
+    - Verifying a benchmark's implementation against a compatible output file
+      named "bench.out":
+        $ python run-benchmark.py benchmarks/datamining/correlation/correlation.py --verify-file bench.out
+
+    Available PolyBench options (--polybench-options):
+        POLYBENCH_TIME: (default off) prints the time elapsed during the
+            execution of the kernel's code in seconds.
+        POLYBENCH_DUMP_ARRAYS: (default false) outputs the returning arrays of
+            the benchmark into stderr.
+        POLYBENCH_PADDING_FACTOR: (default 0) adds N elements at the end of
+            every array's dimension.
+        POLYBENCH_PAPI: (default off) enables PAPI counters. This will not
+            work when POLYBENCH_TIME is enabled
+        POLYBENCH_PAPI_VERBOSE: (default false) print the PAPI counter name
+            next to its value.
+        POLYBENCH_CACHE_SIZE_KB: (default 32770) the size, in KiloBytes, of
+            the data structure used for flushing the cache.
+        POLYBENCH_NO_FLUSH_CACHE: (default flush) disable cache flushing.
+        POLYBENCH_CYCLE_ACCURATE_TIMER: (default false) use the processor's
+            timestamp counter (TSC) on compatible systems.
+        POLYBENCH_LINUX_FIFO_SCHEDULER: (default false) use the FIFO scheduler
+            for this process. This requires superuser privilege.
+
+    Examples using multiple polybench options:
+    - Printing verbose PAPI counters:
+        $ python run-benchmark.py benchmarks/datamining/correlation/correlation.py --polybench-options POLYBENCH_PAPI,POLYBENCH_PAPI_VERBOSE
+    - Print the execution time and use a larger cache flush size:
+        $ python run-benchmark.py benchmarks/datamining/correlation/correlation.py --polybench-options POLYBENCH_TIME,POLYBENCH_CACHE_SIZE_KB=65538
