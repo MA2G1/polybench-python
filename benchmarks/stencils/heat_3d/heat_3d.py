@@ -41,33 +41,18 @@ class Heat_3d(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list, B: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    for k in range(0, self.N):
-                        A[(self.N * i + j) * self.N + k] = B[(self.N * i + j) * self.N + k]\
-                            = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    for k in range(0, self.N):
-                        A[i][j][k] = B[i][j][k] = self.DATA_TYPE(i + j + (self.N - k)) * 10 / self.N
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    A[i, j, k] = B[i, j, k] = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
 
     def print_array_custom(self, A: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    for k in range(0, self.N):
-                        if (i * self.N * self.N + j * self.N + k) % 20 == 0:
-                            self.print_message('\n')
-                        self.print_value(A[(self.N * i + j) * self.N + k])
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    for k in range(0, self.N):
-                        if (i * self.N * self.N + j * self.N + k) % 20 == 0:
-                            self.print_message('\n')
-                        self.print_value(A[i][j][k])
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    if (i * self.N * self.N + j * self.N + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i, j, k])
 
     def kernel(self, A: list, B: list):
 # scop begin
@@ -75,82 +60,36 @@ class Heat_3d(PolyBench):
             for i in range(1, self.N - 1):
                 for j in range(1, self.N - 1):
                     for k in range(1, self.N - 1):
-                        B[i][j][k] = (0.125 * (A[i+1][j][k] - 2.0 * A[i][j][k] + A[i-1][j][k])
-                                    + 0.125 * (A[i][j+1][k] - 2.0 * A[i][j][k] + A[i][j-1][k])
-                                    + 0.125 * (A[i][j][k+1] - 2.0 * A[i][j][k] + A[i][j][k-1])
-                                    + A[i][j][k])
+                        B[i, j, k] = (0.125 * (A[i+1, j, k] - 2.0 * A[i, j, k] + A[i-1, j, k])
+                                    + 0.125 * (A[i, j+1, k] - 2.0 * A[i, j, k] + A[i, j-1, k])
+                                    + 0.125 * (A[i, j, k+1] - 2.0 * A[i, j, k] + A[i, j, k-1])
+                                    + A[i, j, k])
 
             for i in range(1, self.N - 1):
                 for j in range(1, self.N - 1):
                     for k in range(1, self.N - 1):
-                        A[i][j][k] = (0.125 * (B[i+1][j][k] - 2.0 * B[i][j][k] + B[i-1][j][k])
-                                    + 0.125 * (B[i][j+1][k] - 2.0 * B[i][j][k] + B[i][j-1][k])
-                                    + 0.125 * (B[i][j][k+1] - 2.0 * B[i][j][k] + B[i][j][k-1])
-                                    + B[i][j][k])
-# scop end
-
-    def kernel_flat(self, A: list, B: list):
-# scop begin
-        for t in range(1, self.TSTEPS + 1):
-            for i in range(1, self.N - 1):
-                for j in range(1, self.N - 1):
-                    for k in range(1, self.N - 1):
-                        B[(self.N * i + j) * self.N + k] = (
-                                0.125 * (A[(self.N * (i + 1) + j) * self.N + k]
-                                         - 2.0 * A[(self.N * i + j) * self.N + k]
-                                         + A[(self.N * (i - 1) + j) * self.N + k])
-                                + 0.125 * (A[(self.N * i + (j + 1)) * self.N + k]
-                                           - 2.0 * A[(self.N * i + j) * self.N + k]
-                                           + A[(self.N * i + (j - 1)) * self.N + k])
-                                + 0.125 * (A[(self.N * i + j) * self.N + (k + 1)]
-                                           - 2.0 * A[(self.N * i + j) * self.N + k]
-                                           + A[(self.N * i + j) * self.N + (k - 1)])
-                                + A[(self.N * i + j) * self.N + k]
-                        )
-
-            for i in range(1, self.N - 1):
-                for j in range(1, self.N - 1):
-                    for k in range(1, self.N - 1):
-                        A[(self.N * i + j) * self.N + k] = (
-                                0.125 * (B[(self.N * (i + 1) + j) * self.N + k]
-                                         - 2.0 * B[(self.N * i + j) * self.N + k]
-                                         + B[(self.N * (i - 1) + j) * self.N + k])
-                                + 0.125 * (B[(self.N * i + (j + 1)) * self.N + k]
-                                           - 2.0 * B[(self.N * i + j) * self.N + k]
-                                           + B[(self.N * i + (j - 1)) * self.N + k])
-                                + 0.125 * (B[(self.N * i + j) * self.N + (k + 1)]
-                                           - 2.0 * B[(self.N * i + j) * self.N + k]
-                                           + B[(self.N * i + j) * self.N + (k - 1)])
-                                + B[(self.N * i + j) * self.N + k]
-                        )
+                        A[i, j, k] = (0.125 * (B[i+1, j, k] - 2.0 * B[i, j, k] + B[i-1, j, k])
+                                    + 0.125 * (B[i, j+1, k] - 2.0 * B[i, j, k] + B[i, j-1, k])
+                                    + 0.125 * (B[i, j, k+1] - 2.0 * B[i, j, k] + B[i, j, k-1])
+                                    + B[i, j, k])
 # scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.N * self.N * self.N], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.N * self.N * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(3, [self.N, self.N, self.N], self.DATA_TYPE(0))
-            B = self.create_array(3, [self.N, self.N, self.N], self.DATA_TYPE(0))
+        A = self.create_array(3, [self.N, self.N, self.N], self.DATA_TYPE(0))
+        B = self.create_array(3, [self.N, self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, B)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(A, B)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(A, B)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(A, B)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

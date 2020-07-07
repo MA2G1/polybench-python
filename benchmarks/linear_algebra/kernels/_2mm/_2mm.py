@@ -43,83 +43,43 @@ class _2mm(PolyBench):
         self.NL = params.get('NL')
 
     def initialize_array(self, A: list, B: list, C: list, D: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NK):
-                    A[self.NK * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
 
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[self.NJ * i + j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i, j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
 
-            for i in range(0, self.NJ):
-                for j in range(0, self.NL):
-                    C[self.NL * i + j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                C[i, j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
 
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    D[self.NL * i + j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NK):
-                    A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
-
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[i][j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
-
-            for i in range(0, self.NJ):
-                for j in range(0, self.NL):
-                    C[i][j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
-
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    D[i][j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[i, j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
 
     def print_array_custom(self, D: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(D[self.NL * i + j])
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(D[i][j])
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(D[i, j])
 
     def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
 # scop begin
         # D := alpha * A * B * C + beta * D
         for i in range(self.NI):
             for j in range(self.NJ):
-                tmp[i][j] = 0.0
+                tmp[i, j] = 0.0
                 for k in range(0, self.NK):
-                    tmp[i][j] += alpha * A[i][k] * B[k][j]
+                    tmp[i, j] += alpha * A[i, k] * B[k, j]
 
         for i in range(0, self.NI):
             for j in range(0, self.NL):
-                D[i][j] *= beta
+                D[i, j] *= beta
                 for k in range(0, self.NJ):
-                    D[i][j] += tmp[i][k] * C[k][j]
-# scop end
-
-    def kernel_flat(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
-# scop begin
-        # D := alpha * A * B * C + beta * D
-        for i in range(self.NI):
-            for j in range(self.NJ):
-                tmp[self.NJ * i + j] = 0.0
-                for k in range(0, self.NK):
-                    tmp[self.NJ * i + j] += alpha * A[self.NK * i + k] * B[self.NJ * k + j]
-
-        for i in range(0, self.NI):
-            for j in range(0, self.NL):
-                D[self.NL * i + j] *= beta
-                for k in range(0, self.NJ):
-                    D[self.NL * i + j] += tmp[self.NJ * i + k] * C[self.NL * k + j]
+                    D[i, j] += tmp[i, k] * C[k, j]
 # scop end
 
     def run_benchmark(self):
@@ -127,36 +87,23 @@ class _2mm(PolyBench):
         alpha = 1.5
         beta = 1.2
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            tmp = self.create_array(1, [self.NI * self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(1, [self.NI * self.NK], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.NK * self.NJ], self.DATA_TYPE(0))
-            C = self.create_array(1, [self.NJ * self.NL], self.DATA_TYPE(0))
-            D = self.create_array(1, [self.NI * self.NL], self.DATA_TYPE(0))
-        else:
-            tmp = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
-            C = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
-            D = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
+        tmp = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
+        C = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
+        D = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, B, C, D)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, beta, tmp, A, B, C, D)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, beta, tmp, A, B, C, D)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, beta, tmp, A, B, C, D)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

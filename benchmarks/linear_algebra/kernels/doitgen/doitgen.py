@@ -42,40 +42,22 @@ class Doitgen(PolyBench):
         self.NP = params.get('NP')
 
     def initialize_array(self, A: list, C4: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NR):
-                for j in range(0, self.NQ):
-                    for k in range(0, self.NP):
-                        A[(self.NQ * i + j) * self.NP + k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    A[i, j, k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
 
-            for i in range(0, self.NP):
-                for j in range(0, self.NP):
-                    C4[self.NP * i + j] = self.DATA_TYPE(i * j % self.NP) / self.NP
-        else:
-            for i in range(0, self.NR):
-                for j in range(0, self.NQ):
-                    for k in range(0, self.NP):
-                        A[i][j][k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
-
-            for i in range(0, self.NP):
-                for j in range(0, self.NP):
-                    C4[i][j] = self.DATA_TYPE(i * j % self.NP) / self.NP
+        for i in range(0, self.NP):
+            for j in range(0, self.NP):
+                C4[i, j] = self.DATA_TYPE(i * j % self.NP) / self.NP
 
     def print_array_custom(self, A: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NR):
-                for j in range(0, self.NQ):
-                    for k in range(0, self.NP):
-                        if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
-                            self.print_message('\n')
-                        self.print_value(A[(self.NQ * i + j) * self.NP + k])
-        else:
-            for i in range(0, self.NR):
-                for j in range(0, self.NQ):
-                    for k in range(0, self.NP):
-                        if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
-                            self.print_message('\n')
-                        self.print_value(A[i][j][k])
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i, j, k])
 
     def kernel(self, A: list, C4: list, sum: list):
 # scop begin
@@ -84,52 +66,29 @@ class Doitgen(PolyBench):
                 for p in range(0, self.NP):
                     sum[p] = 0.0
                     for s in range(self.NP):
-                        sum[p] += A[r][q][s] * C4[s][p]
+                        sum[p] += A[r, q, s] * C4[s, p]
 
                 for p in range(0, self.NP):
-                    A[r][q][p] = sum[p]
-# scop end
-
-    def kernel_flat(self, A: list, C4: list, sum: list):
-# scop begin
-        for r in range(0, self.NR):
-            for q in range(self.NQ):
-                for p in range(0, self.NP):
-                    sum[p] = 0.0
-                    for s in range(self.NP):
-                        sum[p] += A[(self.NQ * r + q) * self.NP + s] * C4[self.NP * s + p]
-
-                for p in range(0, self.NP):
-                    A[(self.NQ * r + q) * self.NP + p] = sum[p]
+                    A[r, q, p] = sum[p]
 # scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.NR * self.NQ * self.NP], self.DATA_TYPE(0))
-            C4 = self.create_array(1, [self.NP * self.NP], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(3, [self.NR, self.NQ, self.NP], self.DATA_TYPE(0))
-            C4 = self.create_array(2, [self.NP, self.NP], self.DATA_TYPE(0))
+        A = self.create_array(3, [self.NR, self.NQ, self.NP], self.DATA_TYPE(0))
         sum = self.create_array(1, [self.NP], self.DATA_TYPE(0))
+        C4 = self.create_array(2, [self.NP, self.NP], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, C4)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(A, C4, sum)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(A, C4, sum)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(A, C4, sum)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

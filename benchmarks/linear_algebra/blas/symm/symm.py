@@ -41,42 +41,23 @@ class Symm(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, C: list, A: list, B: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    C[self.N * i + j] = self.DATA_TYPE((i + j) % 100) / self.M
-                    B[self.N * i + j] = self.DATA_TYPE((self.N + i - j) % 100) / self.M
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                C[i, j] = self.DATA_TYPE((i+j) % 100) / self.M
+                B[i, j] = self.DATA_TYPE((self.N+i-j) % 100) / self.M
 
-            for i in range(0, self.M):
-                for j in range(0, i + 1):
-                    A[self.M * i + j] = self.DATA_TYPE((i + j) % 100) / self.M
-                for j in range(i + 1, self.M):
-                    A[self.M * i + j] = -999  # regions of arrays that should not be used
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    C[i][j] = self.DATA_TYPE((i+j) % 100) / self.M
-                    B[i][j] = self.DATA_TYPE((self.N+i-j) % 100) / self.M
-
-            for i in range(0, self.M):
-                for j in range(0, i + 1):
-                    A[i][j] = self.DATA_TYPE((i+j) % 100) / self.M
-                for j in range(i + 1, self.M):
-                    A[i][j] = -999  # regions of arrays that should not be used
+        for i in range(0, self.M):
+            for j in range(0, i + 1):
+                A[i, j] = self.DATA_TYPE((i+j) % 100) / self.M
+            for j in range(i + 1, self.M):
+                A[i, j] = -999  # regions of arrays that should not be used
 
     def print_array_custom(self, C: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(C[self.N * i + j])
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(C[i][j])
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[i, j])
 
     def kernel(self, alpha, beta, C: list, A: list, B: list):
         # BLAS PARAMS
@@ -92,21 +73,9 @@ class Symm(PolyBench):
             for j in range(0, self.N):
                 temp2 = 0
                 for k in range(0, i):
-                    C[k][j] += alpha * B[i][j] * A[i][k]
-                    temp2 += B[k][j] * A[i][k]
-                C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2
-# scop end
-
-    def kernel_flat(self, alpha, beta, C: list, A: list, B: list):
-# scop begin
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                temp2 = 0
-                for k in range(0, i):
-                    C[self.N * k + j] += alpha * B[self.N * i + j] * A[self.M * i + k]
-                    temp2 += B[self.N * k + j] * A[self.M * i + k]
-                C[self.N * i + j] = beta * C[self.N * i + j] + alpha * B[self.N * i + j] * A[self.M * i + i] + alpha * temp2
-
+                    C[k, j] += alpha * B[i, j] * A[i, k]
+                    temp2 += B[k, j] * A[i, k]
+                C[i, j] = beta * C[i, j] + alpha * B[i, j] * A[i, i] + alpha * temp2
 # scop end
 
     def run_benchmark(self):
@@ -114,32 +83,21 @@ class Symm(PolyBench):
         alpha = 1.5
         beta = 1.2
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            C = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
-            A = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
-        else:
-            C = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
-            A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        C = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(C, A, B)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, beta, C, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, beta, C, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, beta, C, A, B)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

@@ -43,28 +43,16 @@ class Correlation(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, data: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.M):
-                    data[self.M * i + j] = (self.DATA_TYPE(i * j) / self.M) + i
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.M):
-                    data[i][j] = (self.DATA_TYPE(i * j) / self.M) + i
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i, j] = (self.DATA_TYPE(i * j) / self.M) + i
 
     def print_array_custom(self, corr: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, self.M):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(corr[self.M * i + j])
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.M):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(corr[i][j])
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(corr[i, j])
 
     def kernel(self, float_n: float, data: list, corr: list, mean: list, stddev: list):
         # NOTE: float_n is the actual value of N as a float, with the intention of keeping it in the stack
@@ -79,13 +67,13 @@ class Correlation(PolyBench):
         for j in range(0, self.M):
             mean[j] = 0.0
             for i in range(0, self.N):
-                mean[j] += data[i][j]
+                mean[j] += data[i, j]
             mean[j] /= float_n
 
         for j in range(0, self.M):
             stddev[j] = 0.0
             for i in range(0, self.N):
-                stddev[j] += (data[i][j] - mean[j]) * (data[i][j] - mean[j])
+                stddev[j] += (data[i, j] - mean[j]) * (data[i, j] - mean[j])
             stddev[j] /= float_n
             stddev[j] = sqrt(stddev[j])
             # The following in an elegant but usual way to handle near-zero std. dev. values, which below would cause a
@@ -95,96 +83,40 @@ class Correlation(PolyBench):
         # Center and reduce the column vectors.
         for i in range(0, self.N):
             for j in range(0, self.M):
-                data[i][j] -= mean[j]
-                data[i][j] /= sqrt(float_n) * stddev[j]
+                data[i, j] -= mean[j]
+                data[i, j] /= sqrt(float_n) * stddev[j]
 
         # Calculate the m*n correlation matrix.
         for i in range(0, self.M-1):
-            corr[i][i] = 1.0
+            corr[i, i] = 1.0
             for j in range(i+1, self.M):
-                corr[i][j] = 0.0
+                corr[i, j] = 0.0
                 for k in range(0, self.N):
-                    corr[i][j] += (data[k][i] * data[k][j])
-                corr[j][i] = corr[i][j]
-        corr[self.M-1][self.M-1] = 1.0
-# scop end
-
-    def kernel_flat(self, float_n: float, data: list, corr: list, mean: list, stddev: list):
-        # NOTE: float_n is the actual value of N as a float, with the intention of keeping it in the stack
-        #
-        # NOTE: _PB_X: allows to tune if the bound values are parametric or scalar. Python does not understand of
-        # constants, so scalar bounds are out of scope. Maybe we can differentiate between parametric (maybe allocated
-        # in the stack by the runtime) and non-parametric (class member, maybe allocated in the heap). Where the actual
-        # value is stored will depend in the runtime's implementation and JIT recompiler.
-        eps = 0.1
-
-# scop begin
-        for j in range(0, self.M):
-            mean[j] = 0.0
-            for i in range(0, self.N):
-                mean[j] += data[self.M * i + j]
-            mean[j] /= float_n
-
-        for j in range(0, self.M):
-            stddev[j] = 0.0
-            for i in range(0, self.N):
-                stddev[j] += (data[self.M * i + j] - mean[j]) * (data[self.M * i + j] - mean[j])
-            stddev[j] /= float_n
-            stddev[j] = sqrt(stddev[j])
-            # The following in an elegant but usual way to handle near-zero std. dev. values, which below would cause a
-            # zero divide.
-            stddev[j] = 1.0 if stddev[j] <= eps else stddev[j]
-
-        # Center and reduce the column vectors.
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                data[self.M * i + j] -= mean[j]
-                data[self.M * i + j] /= sqrt(float_n) * stddev[j]
-
-        # Calculate the m*n correlation matrix.
-        for i in range(0, self.M - 1):
-            corr[self.M * i + i] = 1.0
-            for j in range(i + 1, self.M):
-                corr[self.M * i + j] = 0.0
-                for k in range(0, self.N):
-                    corr[self.M * i + j] += (data[self.M * k + i] * data[self.M * k + j])
-                corr[self.M * j + i] = corr[self.M * i + j]
-        corr[self.M * (self.M - 1) + (self.M - 1)] = 1.0
-
+                    corr[i, j] += (data[k, i] * data[k, j])
+                corr[j, i] = corr[i, j]
+        corr[self.M-1, self.M-1] = 1.0
 # scop end
 
     def run_benchmark(self):
         # Array creation
         float_n = float(self.N)  # we will need a floating point version of N
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            data = self.create_array(1, [self.N * self.M], self.DATA_TYPE(0))
-            corr = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
-            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
-            stddev = self.create_array(1, [self.M], self.DATA_TYPE(0))
-        else:
-            data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
-            corr = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
-            stddev = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        corr = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+        mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
+        stddev = self.create_array(1, [self.M], self.DATA_TYPE(0))
 
         # Initialize array(s)
         self.initialize_array(data)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(float_n, data, corr, mean, stddev)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(float_n, data, corr, mean, stddev)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(float_n, data, corr, mean, stddev)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value)
         return [('corr', corr)]

@@ -40,18 +40,11 @@ class Gesummv(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, A: list, B: list, x: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                x[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.N):
-                    A[self.N * i + j] = self.DATA_TYPE((i * j+1) % self.N) / self.N
-                    B[self.N * i + j] = self.DATA_TYPE((i * j+2) % self.N) / self.N
-        else:
-            for i in range(0, self.N):
-                x[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.N):
-                    A[i][j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
-                    B[i][j] = self.DATA_TYPE((i * j + 2) % self.N) / self.N
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.N):
+                A[i, j] = self.DATA_TYPE((i * j+1) % self.N) / self.N
+                B[i, j] = self.DATA_TYPE((i * j+2) % self.N) / self.N
 
     def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
@@ -65,19 +58,8 @@ class Gesummv(PolyBench):
             tmp[i] = 0.0
             y[i] = 0.0
             for j in range(0, self.N):
-                tmp[i] = A[i][j] * x[j] + tmp[i]
-                y[i] = B[i][j] * x[j] + y[i]
-            y[i] = alpha * tmp[i] + beta * y[i]
-# scop end
-
-    def kernel_flat(self, alpha, beta, A: list, B: list, tmp: list, x: list, y: list):
-# scop begin
-        for i in range(0, self.N):
-            tmp[i] = 0.0
-            y[i] = 0.0
-            for j in range(0, self.N):
-                tmp[i] = A[self.N * i + j] * x[j] + tmp[i]
-                y[i] = B[self.N * i + j] * x[j] + y[i]
+                tmp[i] = A[i, j] * x[j] + tmp[i]
+                y[i] = B[i, j] * x[j] + y[i]
             y[i] = alpha * tmp[i] + beta * y[i]
 # scop end
 
@@ -86,12 +68,8 @@ class Gesummv(PolyBench):
         alpha = 1.5
         beta = 1.2
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
         tmp = self.create_array(1, [self.N], self.DATA_TYPE(0))
         x = self.create_array(1, [self.N], self.DATA_TYPE(0))
         y = self.create_array(1, [self.N], self.DATA_TYPE(0))
@@ -99,20 +77,14 @@ class Gesummv(PolyBench):
         # Initialize data structures
         self.initialize_array(A, B, x)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, beta, A, B, tmp, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, beta, A, B, tmp, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, beta, A, B, tmp, x, y)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

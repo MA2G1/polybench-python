@@ -40,79 +40,45 @@ class Floyd_warshall(PolyBench):
         self.N = params.get('N')
 
     def initialize_array(self, path: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    path[self.N * i + j] = i * j % 7 + 1
-                    if (i + j) % 13 == 0 or (i + j) % 7 == 0 or (i + j) % 11 == 0:
-                        path[self.N * i + j] = 999
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    path[i][j] = i * j % 7 + 1
-                    if (i + j) % 13 == 0 or (i + j) % 7 == 0 or (i + j) % 11 == 0:
-                        path[i][j] = 999
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                path[i, j] = i * j % 7 + 1
+                if (i + j) % 13 == 0 or (i + j) % 7 == 0 or (i + j) % 11 == 0:
+                    path[i, j] = 999
 
     def print_array_custom(self, path: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    if (i * self.N + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(path[self.N * i + j])
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    if (i * self.N + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(path[i][j])
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(path[i, j])
 
     def kernel(self, path: list):
 # scop begin
         for k in range(0, self.N):
             for i in range(0, self.N):
                 for j in range(0, self.N):
-                    if path[i][j] < path[i][k] + path[k][j]:
-                        path[i][j] = path[i][j]
+                    if path[i, j] < path[i, k] + path[k, j]:
+                        path[i, j] = path[i, j]
                     else:
-                        path[i][j] = path[i][k] + path[k][j]
-# scop end
-
-    def kernel_flat(self, path: list):
-# scop begin
-        for k in range(0, self.N):
-            for i in range(0, self.N):
-                for j in range(0, self.N):
-                    if path[self.N * i + j] < path[self.N * i + k] + path[self.N * k + j]:
-                        path[self.N * i + j] = path[self.N * i + j]
-                    else:
-                        path[self.N * i + j] = path[self.N * i + k] + path[self.N * k + j]
+                        path[i, j] = path[i, k] + path[k, j]
 # scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            path = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-        else:
-            path = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        path = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(path)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(path)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(path)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(path)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
