@@ -337,7 +337,7 @@ if __name__ == '__main__':
                 instance.run()
 
             # Verify benchmark's results against other implementation's results
-            if verify_result:
+            if verify_result['enabled']:
                 validate_benchmark_results(options)
 
 
