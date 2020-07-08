@@ -143,7 +143,7 @@ if __name__ == '__main__':
                 handle = stdout
             else:
                 handle = open(file_name, 'w', newline='\n')
-            result['output'] = handle
+            result['output_array'] = handle
 
         # Process the "output_array" argument
         if not (args.output_array is None):
@@ -325,7 +325,7 @@ if __name__ == '__main__':
         """Compare two files and report if they match or not.
 
         This validation is intentionally very simple. In case of error, the user must manually compare the results"""
-        output_file_name = options['output'].name
+        output_file_name = options['output_array'].name
         verify_file_name = options['verify']['full_path']
 
         print(f'Verifying if files "{output_file_name}" and "{verify_file_name}" match... ', end='')
