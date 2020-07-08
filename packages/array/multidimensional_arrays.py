@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """This module offers multiple array implementations."""
-
+import collections
 from abc import abstractmethod
 
 import numpy
@@ -57,14 +57,15 @@ class MultidimensionalArray:
         self.offset = offset
 
 
-class MultidimensionalArrayListBase(list, MultidimensionalArray):
+class MultidimensionalArrayListBase(collections.UserList, MultidimensionalArray):
     """Defines a multidimensional array using a Python's list as the base class.
 
     This class offers common functionality for list-based arrays such as memory initialization."""
 
     def __init__(self, shape: tuple, dtype, offset: int = 0):
         MultidimensionalArray.__init__(self, shape, dtype, offset)
-        list.__init__(self, self.__list_init__(shape, dtype, offset))
+        # list.__init__(self, self.__list_init__(shape, dtype, offset))
+        collections.UserList.__init__(self, self.__list_init__(shape, dtype, offset))
 
     @abstractmethod
     def __list_init__(self, shape: tuple, dtype, offset: int) -> list: ...
@@ -75,26 +76,57 @@ class MultidimensionalArrayList(MultidimensionalArrayListBase):
     def __init__(self, shape: tuple, dtype, offset: int = 0):
         super(MultidimensionalArrayList, self).__init__(shape, dtype, offset)
 
+        def get_item_1d(self, item):
+            if type(item) == tuple:
+                return super(MultidimensionalArrayList, self).__getitem__(item[0])
+            else:
+                return super(MultidimensionalArrayList, self).__getitem__(item)
+
+        def get_item_2d(self, item):
+            if type(item) == tuple:
+                return super(MultidimensionalArrayList, self).__getitem__(item[0])[item[1]]
+            else:
+                return super(MultidimensionalArrayList, self).__getitem__(item)
+
+        def get_item_3d(self, item):
+            if type(item) == tuple:
+                return super(MultidimensionalArrayList, self).__getitem__(item[0])[item[1]][item[2]]
+            else:
+                return super(MultidimensionalArrayList, self).__getitem__(item)
+
+        def set_item_1d(self, key, value):
+            if type(key) == tuple:
+                super(MultidimensionalArrayList, self).__setitem__(key[0], value)
+            else:
+                super(MultidimensionalArrayList, self).__setitem__(key, value)
+
+        def set_item_2d(self, key, value):
+            if type(key) == tuple:
+                super(MultidimensionalArrayList, self).__getitem__(key[0]).__setitem__(key[1], value)
+            else:
+                super(MultidimensionalArrayList, self).__setitem__(key, value)
+
+        def set_item_3d(self, key, value):
+            if type(key) == tuple:
+                super(MultidimensionalArrayList, self).__getitem__(key[0]).__getitem__(key[1]).__setitem__(key[2], value)
+            else:
+                super(MultidimensionalArrayList, self).__setitem__(key, value)
+
+        if len(shape) == 1:
+            self.__getitem2__ = get_item_1d
+            self.__setitem2__ = set_item_1d
+        elif len(shape) == 2:
+            self.__getitem2__ = get_item_2d
+            self.__setitem2__ = set_item_2d
+        elif len(shape) == 3:
+            self.__getitem2__ = get_item_3d
+            self.__setitem2__ = set_item_3d
+
+        MultidimensionalArrayList.__getitem__ = self.__getitem2__
+        MultidimensionalArrayList.__setitem__ = self.__setitem2__
+
     def __list_init__(self, shape: tuple, dtype, offset: int) -> list:
         return _create_array_rec(len(shape), shape, dtype(0))
-
-    def __getitem__(self, item: tuple):
-        if type(item) is tuple:
-            if len(item) == 2:
-                return super(MultidimensionalArrayList, self).__getitem__(item[0])[item[1]]
-            elif len(item) == 3:
-                return super(MultidimensionalArrayList, self).__getitem__(item[0])[item[1]][item[2]]
-        else:
-            return super(MultidimensionalArrayList, self).__getitem__(item)
-
-    def __setitem__(self, key, value):
-        if type(key) is tuple:
-            if len(key) == 2:
-                super(MultidimensionalArrayList, self).__getitem__(key[0]).__setitem__(key[1], value)
-            elif len(key) == 3:
-                super(MultidimensionalArrayList, self).__getitem__(key[0]).__getitem__(key[1]).__setitem__(key[2], value)
-        else:
-            super(MultidimensionalArrayList, self).__setitem__(key, value)
 
 
 class MultidimensionalArrayListFlattened(MultidimensionalArrayListBase):
@@ -113,6 +145,60 @@ class MultidimensionalArrayListFlattened(MultidimensionalArrayListBase):
                 self.DIM3_SIZE = size
             i += 1
 
+        def get_item_1d(self, item):
+            # if type(item) is tuple:
+            if isinstance(item, tuple):
+                return super(MultidimensionalArrayListFlattened, self).__getitem__(item[0])
+            else:
+                return super(MultidimensionalArrayListFlattened, self).__getitem__(item)
+
+        def get_item_2d(self, item):
+            # if type(item) is tuple:
+            if isinstance(item, tuple):
+                return super(MultidimensionalArrayListFlattened, self).__getitem__(item[0] * self.DIM2_SIZE + item[1])
+            else:
+                return super(MultidimensionalArrayListFlattened, self).__getitem__(item)
+
+        def get_item_3d(self, item):
+            # if type(item) is tuple:
+            if isinstance(item, tuple):
+                return super(MultidimensionalArrayListFlattened, self).__getitem__((item[0] * self.DIM2_SIZE + item[1])
+                                                                                   * self.DIM3_SIZE + item[2])
+            else:
+                return super(MultidimensionalArrayListFlattened, self).__getitem__(item)
+
+        def set_item_1d(self, key, value):
+            # if type(key) is tuple:
+            if isinstance(key, tuple):
+                super(MultidimensionalArrayListFlattened, self).__setitem__(key[0], value)
+            else:
+                super(MultidimensionalArrayListFlattened, self).__setitem__(key, value)
+
+        def set_item_2d(self, key, value):
+            # if type(key) is tuple:
+            if isinstance(key, tuple):
+                super(MultidimensionalArrayListFlattened, self).__setitem__(key[0] * self.DIM2_SIZE + key[1], value)
+            else:
+                super(MultidimensionalArrayListFlattened, self).__setitem__(key, value)
+
+        def set_item_3d(self, key, value):
+            # if type(key) is tuple:
+            if isinstance(key, tuple):
+                super(MultidimensionalArrayListFlattened, self).__setitem__((key[0] * self.DIM2_SIZE + key[1])
+                                                                            * self.DIM3_SIZE + key[2], value)
+            else:
+                super(MultidimensionalArrayListFlattened, self).__setitem__(key, value)
+
+        if len(shape) == 1:
+            MultidimensionalArrayListFlattened.__getitem__ = get_item_1d
+            MultidimensionalArrayListFlattened.__setitem__ = set_item_1d
+        elif len(shape) == 2:
+            MultidimensionalArrayListFlattened.__getitem__ = get_item_2d
+            MultidimensionalArrayListFlattened.__setitem__ = set_item_2d
+        elif len(shape) == 3:
+            MultidimensionalArrayListFlattened.__getitem__ = get_item_3d
+            MultidimensionalArrayListFlattened.__setitem__ = set_item_3d
+
     def __list_init__(self, shape: tuple, dtype, offset: int) -> list:
         # Flatten the list by converting the multidimensional array into a single dimension array
         self.size = 1  # Store the number of total elements the list will have
@@ -120,29 +206,6 @@ class MultidimensionalArrayListFlattened(MultidimensionalArrayListBase):
             self.size *= size
 
         return [dtype(0) for x in range(self.size)]
-
-    def __getitem__(self, item: tuple):
-        """Custom __getitem__ supporting multiple indexes via tuple for multidimensional lists"""
-        if type(item) is tuple:
-            if len(item) == 2:
-                # item is a tuple, (i, j)
-                return super(MultidimensionalArrayListFlattened, self).__getitem__(item[0] * self.DIM2_SIZE + item[1])
-            elif len(item) == 3:
-                # item is a tuple, (i, j, k)
-                return super(MultidimensionalArrayListFlattened, self).__getitem__((item[0] * self.DIM2_SIZE + item[1])
-                                                                                   * self.DIM3_SIZE + item[2])
-        else:
-            return super(MultidimensionalArrayListFlattened, self).__getitem__(item)
-
-    def __setitem__(self, key, value):
-        if type(key) is tuple:
-            if len(key) == 2:
-                super(MultidimensionalArrayListFlattened, self).__setitem__(key[0] * self.DIM2_SIZE + key[1], value)
-            elif len(key) == 3:
-                super(MultidimensionalArrayListFlattened, self).__setitem__((key[0] * self.DIM2_SIZE + key[1])
-                                                                            * self.DIM3_SIZE + key[2], value)
-        else:
-            super(MultidimensionalArrayListFlattened, self).__setitem__(key, value)
 
 
 class MultidimensionalArrayNumPy(numpy.ndarray, MultidimensionalArray):
