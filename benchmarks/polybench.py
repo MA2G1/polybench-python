@@ -29,8 +29,7 @@ from ctypes import c_ulonglong
 
 import os
 
-from packages.array.multidimensional_arrays import MultidimensionalArrayList, MultidimensionalArrayListFlattened, \
-    MultidimensionalArrayNumPy
+from packages.array.multidimensional_arrays import MultidimensionalArrayFactory, MultidimensionalArrayImplementation
 
 
 class DatasetSize(Enum):
@@ -262,12 +261,14 @@ class PolyBench:
         # At this point it is safe to say that both dimensions and sizes are valid.
         # Use the appropriate "array" implementation.
         if self.ARRAY_IMPLEMENTATION == 0:
-            return MultidimensionalArrayList(new_sizes, self.DATA_TYPE)
+            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.LIST,
+                                                                           new_sizes, self.DATA_TYPE)
         elif self.ARRAY_IMPLEMENTATION == 1:
-            return MultidimensionalArrayListFlattened(new_sizes, self.DATA_TYPE)
+            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.LIST_FLAT,
+                                                                           new_sizes, self.DATA_TYPE)
         elif self.ARRAY_IMPLEMENTATION == 2:
-            # This uses C-style arrays by default. Change 'C' into 'F' for Fortran arrays.
-            return MultidimensionalArrayNumPy(new_sizes, self.DATA_TYPE, order='C')
+            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.NUMPY,
+                                                                           new_sizes, self.DATA_TYPE)
         else:
             raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 
