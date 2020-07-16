@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Bicg(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _BicgList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _BicgListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _BicgNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,21 +52,6 @@ class Bicg(PolyBench):
         self.M = params.get('M')
         self.N = params.get('N')
 
-    def initialize_array(self, A: list, r: list, p: list):
-        for i in range(0, self.M):
-            p[i] = self.DATA_TYPE(i % self.M) / self.M
-
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                r[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.M):
-                    A[self.M * i + j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
-        else:
-            for i in range(0, self.N):
-                r[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.M):
-                    A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
-
     def print_array_custom(self, array: list, name: list):
         if name == 's':
             loop_bound = self.M
@@ -66,36 +63,9 @@ class Bicg(PolyBench):
                 self.print_message('\n')
             self.print_value(array[i])
 
-    def kernel(self, A: list, s: list, q: list, p: list, r: list):
-# scop begin
-        for i in range(0, self.M):
-            s[i] = 0
-
-        for i in range(0, self.N):
-            q[i] = 0.0
-            for j in range(0, self.M):
-                s[j] = s[j] + r[i] * A[i][j]
-                q[i] = q[i] + A[i][j] * p[j]
-# scop end
-
-    def kernel_flat(self, A: list, s: list, q: list, p: list, r: list):
-# scop begin
-        for i in range(0, self.M):
-            s[i] = 0
-
-        for i in range(0, self.N):
-            q[i] = 0.0
-            for j in range(0, self.M):
-                s[j] = s[j] + r[i] * A[self.M * i + j]
-                q[i] = q[i] + A[self.M * i + j] * p[j]
-# scop end
-
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.N * self.M], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
         s = self.create_array(1, [self.M], self.DATA_TYPE(0))
         q = self.create_array(1, [self.N], self.DATA_TYPE(0))
         p = self.create_array(1, [self.M], self.DATA_TYPE(0))
@@ -104,20 +74,14 @@ class Bicg(PolyBench):
         # Initialize data structures
         self.initialize_array(A, r, p)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(A, s, q, p, r)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(A, s, q, p, r)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(A, s, q, p, r)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
@@ -131,3 +95,93 @@ class Bicg(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('s', s), ('q', q)]
+
+
+class _BicgList(Bicg):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_BicgList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, r: list, p: list):
+        for i in range(0, self.M):
+            p[i] = self.DATA_TYPE(i % self.M) / self.M
+
+        for i in range(0, self.N):
+            r[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.M):
+                A[i][j] = self.DATA_TYPE(i * (j+1) % self.N) / self.N
+
+    def kernel(self, A: list, s: list, q: list, p: list, r: list):
+# scop begin
+        for i in range(0, self.M):
+            s[i] = 0
+
+        for i in range(0, self.N):
+            q[i] = 0.0
+            for j in range(0, self.M):
+                s[j] = s[j] + r[i] * A[i][j]
+                q[i] = q[i] + A[i][j] * p[j]
+# scop end
+
+
+class _BicgListFlattened(Bicg):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_BicgListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, r: list, p: list):
+        for i in range(0, self.M):
+            p[i] = self.DATA_TYPE(i % self.M) / self.M
+
+        for i in range(0, self.N):
+            r[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.M):
+                A[self.M * i + j] = self.DATA_TYPE(i * (j + 1) % self.N) / self.N
+
+    def kernel(self, A: list, s: list, q: list, p: list, r: list):
+# scop begin
+        for i in range(0, self.M):
+            s[i] = 0
+
+        for i in range(0, self.N):
+            q[i] = 0.0
+            for j in range(0, self.M):
+                s[j] = s[j] + r[i] * A[self.M * i + j]
+                q[i] = q[i] + A[self.M * i + j] * p[j]
+# scop end
+
+
+class _BicgNumPy(Bicg):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_BicgNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, r: ndarray, p: ndarray):
+        for i in range(0, self.M):
+            p[i] = self.DATA_TYPE(i % self.M) / self.M
+
+        for i in range(0, self.N):
+            r[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.M):
+                A[i, j] = self.DATA_TYPE(i * (j + 1) % self.N) / self.N
+
+    def kernel(self, A: ndarray, s: ndarray, q: ndarray, p: ndarray, r: ndarray):
+# scop begin
+        for i in range(0, self.M):
+            s[i] = 0
+
+        for i in range(0, self.N):
+            q[i] = 0.0
+            for j in range(0, self.M):
+                s[j] = s[j] + r[i] * A[i, j]
+                q[i] = q[i] + A[i, j] * p[j]
+# scop end

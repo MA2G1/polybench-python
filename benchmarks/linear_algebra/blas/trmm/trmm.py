@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Trmm(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _TrmmList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _TrmmListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _TrmmNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,39 +52,63 @@ class Trmm(PolyBench):
         self.M = params.get('M')
         self.N = params.get('N')
 
+    def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
+        alpha = 1.5
+
+        A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+
+        # Initialize data structures
+        self.initialize_array(A, B)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, A, B)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('B', B)]
+
+
+class _TrmmList(Trmm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TrmmList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, A: list, B: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, i):
-                    A[self.M * i + j] = self.DATA_TYPE((i+j) % self.M) / self.M
+        for i in range(0, self.M):
+            for j in range(0, i):
+                A[i][j] = self.DATA_TYPE((i + j) % self.M) / self.M
 
-                A[self.M * i + i] = 1.0
+            A[i][i] = 1.0
 
-                for j in range(0, self.N):
-                    B[self.N * i + j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
-        else:
-            for i in range(0, self.M):
-                for j in range(0, i):
-                    A[i][j] = self.DATA_TYPE((i + j) % self.M) / self.M
-
-                A[i][i] = 1.0
-
-                for j in range(0, self.N):
-                    B[i][j] = self.DATA_TYPE((self.N + (i - j)) % self.N) / self.N
+            for j in range(0, self.N):
+                B[i][j] = self.DATA_TYPE((self.N + (i - j)) % self.N) / self.N
 
     def print_array_custom(self, B: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(B[self.N * i + j])
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(B[i][j])
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(B[i][j])
 
     def kernel(self, alpha, A: list, B: list):
         # BLAS parameters
@@ -91,7 +127,33 @@ class Trmm(PolyBench):
                 B[i][j] = alpha * B[i][j]
 # scop end
 
-    def kernel_flat(self, alpha, A: list, B: list):
+
+class _TrmmListFlattened(Trmm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TrmmListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list):
+        for i in range(0, self.M):
+            for j in range(0, i):
+                A[self.M * i + j] = self.DATA_TYPE((i+j) % self.M) / self.M
+
+            A[self.M * i + i] = 1.0
+
+            for j in range(0, self.N):
+                B[self.N * i + j] = self.DATA_TYPE((self.N+(i-j)) % self.N) / self.N
+
+    def print_array_custom(self, B: list, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(B[self.N * i + j])
+
+    def kernel(self, alpha, A: list, B: list):
 # scrop begin
         for i in range(0, self.M):
             for j in range(0, self.N):
@@ -100,44 +162,45 @@ class Trmm(PolyBench):
                 B[self.N * i + j] = alpha * B[self.N * i + j]
 # scop end
 
-    def run_benchmark(self):
-        # Create data structures (arrays, auxiliary variables, etc.)
-        alpha = 1.5
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+class _TrmmNumPy(Trmm):
 
-        # Initialize data structures
-        self.initialize_array(A, B)
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TrmmNumPy)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
 
-        # Return printable data as a list of tuples ('name', value).
-        # Each tuple element must have the following format:
-        #   (A: str, B: matrix)
-        #     - A: a representative name for the data (this string will be printed out)
-        #     - B: the actual data structure holding the computed result
-        #
-        # The syntax for the return statement would then be:
-        #   - For single data structure results:
-        #     return [('data_name', data)]
-        #   - For multiple data structure results:
-        #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('B', B)]
+    def initialize_array(self, A: ndarray, B: ndarray):
+        for i in range(0, self.M):
+            for j in range(0, i):
+                A[i, j] = self.DATA_TYPE((i + j) % self.M) / self.M
+
+            A[i, i] = 1.0
+
+            for j in range(0, self.N):
+                B[i, j] = self.DATA_TYPE((self.N + (i - j)) % self.N) / self.N
+
+    def print_array_custom(self, B: ndarray, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(B[i, j])
+
+    def kernel(self, alpha, A: ndarray, B: ndarray):
+        # BLAS parameters
+        # SIDE   = 'L'
+        # UPLO   = 'L'
+        # TRANSA = 'T'
+        # DIAG   = 'U'
+        # = > Form  B := alpha * A ** T * B.
+        # A is MxM
+        # B is MxN
+# scrop begin
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                for k in range(i + 1, self.M):
+                    B[i, j] += A[k, i] * B[k, j]
+                B[i, j] = alpha * B[i, j]
+# scop end

@@ -13,12 +13,14 @@
 # limitations under the License.
 
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
+from benchmarks.polybench_options import DataSetSize, ArrayImplementation
 import benchmarks.polybench_options as polybench_options
 
 from platform import python_implementation  # Used to determine "inline" C code usage
-from enum import Enum, auto
 from sys import stderr
 from time import time
+
+import numpy
 
 # Import requirements for PAPI
 from pypapi import events as papi_events, papi_high
@@ -28,53 +30,6 @@ from inlineasm import assemble
 from ctypes import c_ulonglong
 
 import os
-
-
-class DatasetSize(Enum):
-    """Define the possible values for selecting dataset sizes.
-
-    Instead of manually managing the values of this enumeration we let the python interpreter initialize them.
-    """
-    MINI = auto()
-    SMALL = auto()
-    MEDIUM = auto()
-    LARGE = auto()
-    EXTRA_LARGE = auto()
-
-
-class PolyBenchParameters:
-    """Stores all parameters required for a benchmark, obtained from a spec file.
-    """
-
-    def __init__(self, parameters: dict):
-        """Process the parameters dictionary and store its values on public class fields."""
-        self.Name = parameters['kernel']
-        self.Category = parameters['category']
-
-        if parameters['datatype'] == 'float' or parameters['datatype'] == 'double':
-            self.DataType = float
-        else:
-            self.DataType = int
-
-        mini_dict = {}
-        small_dict = {}
-        medium_dict = {}
-        large_dict = {}
-        extra_large_dict = {}
-        for i in range(0, len(parameters['params'])):
-            mini_dict[parameters['params'][i]] = parameters['MINI'][i]
-            small_dict[parameters['params'][i]] = parameters['SMALL'][i]
-            medium_dict[parameters['params'][i]] = parameters['MEDIUM'][i]
-            large_dict[parameters['params'][i]] = parameters['LARGE'][i]
-            extra_large_dict[parameters['params'][i]] = parameters['EXTRALARGE'][i]
-
-        self.DataSets = {
-            DatasetSize.MINI: mini_dict,
-            DatasetSize.SMALL: small_dict,
-            DatasetSize.MEDIUM: medium_dict,
-            DatasetSize.LARGE: large_dict,
-            DatasetSize.EXTRA_LARGE: extra_large_dict
-        }
 
 
 class PolyBench:
@@ -119,11 +74,11 @@ class PolyBench:
     __papi_counters = []
     __papi_counters_result = []
 
-    DATASET_SIZE = DatasetSize.LARGE  # The default dataset size for selecting bounds
+    DATASET_SIZE = DataSetSize.LARGE  # The default dataset size for selecting bounds
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
-    def __init__(self, options: dict):
+    def __init__(self, commandline_options: dict):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
@@ -132,6 +87,7 @@ class PolyBench:
         call came from a subclass or not.
         """
 
+        options = commandline_options['polybench_options']
         # Check whether __init__ is being called from a subclass.
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
         # PolyBench. As the documentation states, issubclass(X, X) -> True
@@ -161,7 +117,7 @@ class PolyBench:
                 self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
 
             # PolyBench/Python options
-            self.POLYBENCH_FLATTEN_LISTS = options[polybench_options.POLYBENCH_FLATTEN_LISTS]
+            self.ARRAY_IMPLEMENTATION = commandline_options['array_implementation']
 
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':
@@ -197,7 +153,7 @@ class PolyBench:
             raise RuntimeError('Abstract classes cannot be instantiated.')
 
     def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
-        """Auxiliary recursive method for creating a new array.
+        """Auxiliary recursive method for creating a new array based upon Python lists.
 
         This method assumes that the parameters were previously validated (in the create_array method).
 
@@ -222,7 +178,7 @@ class PolyBench:
             # Generate lists with unique sizes per dimension
             return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
 
-    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
+    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0):
         """
         Create a new array with a specified size.
 
@@ -233,8 +189,7 @@ class PolyBench:
             The size of the first dimension is specified by the first element on the list, the size of the second
             dimension is represented by the second element of the list and so on.
         :param int initialization_value: (optional; default = 0) the value at which all array elements are set.
-        :return: a list representing an array of M dimensions.
-        :rtype list:
+        :return: either a list representing an array of M dimensions or a NumPy array.
         """
         # Sanity check: "dimensions" must be of type integer.
         if not isinstance(dimensions, int):
@@ -281,8 +236,26 @@ class PolyBench:
         # Add post-padding to every array dimension
         new_sizes = [size + self.POLYBENCH_PADDING_FACTOR for size in sizes]
 
+        # Expand the new_sizes list to match the number of dimensions
+        while len(new_sizes) < dimensions:
+            new_sizes.append(sizes[-1])
+
         # At this point it is safe to say that both dimensions and sizes are valid.
-        return self.__create_array_rec(dimensions, new_sizes, initialization_value)
+        # Use the appropriate "array" implementation.
+        if self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
+            return self.__create_array_rec(dimensions, new_sizes, initialization_value)
+        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
+            # A flattened list only has one dimension, which value is the product of all dimensions.
+            dimension_size = 1
+            for dim_size in new_sizes:
+                dimension_size *= dim_size
+            return self.__create_array_rec(1, [dimension_size], initialization_value)
+        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.NUMPY:
+            # Create an auxiliary list for creating an initialized NumPy array.
+            list_array = self.__create_array_rec(dimensions, new_sizes, initialization_value)
+            return numpy.array(list_array, self.DATA_TYPE)
+        else:
+            raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 
     def initialize_array(self, array: list):
         """Implements the array initialization.
@@ -345,7 +318,7 @@ class PolyBench:
         else:
             raise NotImplementedError(f'Unknown print modifier for type {_type}')
 
-    def run(self):
+    def run(self) -> dict:
         """Prepares the environment for running a benchmark, executes it and shows the result.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
@@ -378,7 +351,11 @@ class PolyBench:
 
         if self.POLYBENCH_TIME:
             # Return execution time
-            return self.__timer_result
+            return {polybench_options.POLYBENCH_TIME: self.polybench_result}
+        if self.POLYBENCH_PAPI:
+            # Return PAPI counters
+            return {polybench_options.POLYBENCH_PAPI: self.polybench_result}
+        return {}
 
     def run_benchmark(self):
         """Implements the kernel to be benchmarked.
@@ -440,7 +417,7 @@ class PolyBench:
             self.__linux_standard_scheduler()
 
     def __timer_print(self):
-        self.__timer_result = self.__timer_stop_t - self.__timer_start_t
+        self.polybench_result = self.__timer_stop_t - self.__timer_start_t
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
             print(f'{self.__timer_stop_t - self.__timer_start_t:0.6f}')
         else:
@@ -527,6 +504,7 @@ class PolyBench:
                         break
             return result
 
+        self.polybench_result = {}
         counter_names = papi_counter_names()
         for i in range(0, len(self.__papi_counters)):
             if self.POLYBENCH_PAPI_VERBOSE:
@@ -534,6 +512,8 @@ class PolyBench:
             print(f'{self.__papi_counters_result[i]} ', end='')
             if self.POLYBENCH_PAPI_VERBOSE:
                 print()  # new line
+            # Append key-value to result (name-value)
+            self.polybench_result[counter_names[i]] = self.__papi_counters_result[i]
         print()  # new line
 
     def __flush_cache(self):

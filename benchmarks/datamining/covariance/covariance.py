@@ -15,10 +15,21 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench import PolyBenchParameters
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Covariance(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _CovarianceList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _CovarianceListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _CovarianceNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,29 +52,48 @@ class Covariance(PolyBench):
         self.M = params.get('M')
         self.N = params.get('N')
 
+    def run_benchmark(self):
+        # Array creation
+        float_n = float(self.N)  # we will need a floating point version of N
+
+        data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
+        cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
+        mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
+
+        # Initialize array(s)
+        self.initialize_array(data)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(float_n, data, cov, mean)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value)
+        return [('cov', cov)]
+
+class _CovarianceList(Covariance):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, data: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, self.M):
-                    data[self.M * i + j] = self.DATA_TYPE(i * j) / self.M
-        else:
-            for i in range(0, self.N):
-                for j in range(0, self.M):
-                    data[i][j] = self.DATA_TYPE(i * j) / self.M
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i][j] = self.DATA_TYPE(i * j) / self.M
 
     def print_array_custom(self, cov: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
             for i in range(0, self.M):
                 for j in range(0, self.M):
                     if (i * self.M + j) % 20 == 0:
                         self.print_message('\n')
-                    self.print_value(cov[self.M * i + j])
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.M):
-                    if (i * self.M + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(cov[self.M * i + j])
+                    self.print_value(cov[i][j])
 
     def kernel(self, float_n: float, data: list, cov: list, mean: list):
 # scop begin
@@ -86,7 +116,28 @@ class Covariance(PolyBench):
                 cov[j][i] = cov[i][j]
 # scop end
 
-    def kernel_flat(self, float_n: float, data: list, cov: list, mean: list):
+
+class _CovarianceListFlattened(Covariance):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, data: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[self.M * i + j] = self.DATA_TYPE(i * j) / self.M
+
+    def print_array_custom(self, cov: list, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(cov[self.M * i + j])
+
+    def kernel(self, float_n: float, data: list, cov: list, mean: list):
 # scop begin
         for j in range(0, self.M):
             mean[j] = 0.0
@@ -107,36 +158,44 @@ class Covariance(PolyBench):
                 cov[self.M * j + i] = cov[self.M * i + j]
 # scop end
 
-    def run_benchmark(self):
-        # Array creation
-        float_n = float(self.N)  # we will need a floating point version of N
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            data = self.create_array(1, [self.N * self.M], self.DATA_TYPE(0))
-            cov = self.create_array(1, [self.M * self.M], self.DATA_TYPE(0))
-            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
-        else:
-            data = self.create_array(2, [self.N, self.M], self.DATA_TYPE(0))
-            cov = self.create_array(2, [self.M, self.M], self.DATA_TYPE(0))
-            mean = self.create_array(1, [self.M], self.DATA_TYPE(0))
+class _CovarianceNumPy(Covariance):
 
-        # Initialize array(s)
-        self.initialize_array(data)
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceNumPy)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(float_n, data, cov, mean)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(float_n, data, cov, mean)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
 
-        # Return printable data as a list of tuples ('name', value)
-        return [('cov', cov)]
+    def initialize_array(self, data: ndarray):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i, j] = self.DATA_TYPE(i * j) / self.M
+
+    def print_array_custom(self, cov: ndarray, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(cov[i, j])
+
+    def kernel(self, float_n: float, data: ndarray, cov: ndarray, mean: ndarray):
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[i, j]
+            mean[j] /= float_n
+
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i, j] -= mean[j]
+
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                cov[i, j] = 0.0
+                for k in range(0, self.N):
+                    cov[i, j] += data[k, i] * data[k, j]
+                cov[i, j] /= float_n - 1.0
+                cov[j, i] = cov[i, j]
+# scop end

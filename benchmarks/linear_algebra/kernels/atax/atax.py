@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Atax(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _AtaxList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _AtaxListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _AtaxNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,26 +52,62 @@ class Atax(PolyBench):
         self.M = params.get('M')
         self.N = params.get('N')
 
+    def print_array_custom(self, y: list, name: str):
+        for i in range(0, self.N):
+            if i % 20 == 0:
+                self.print_message('\n')
+            self.print_value(y[i])
+
+    def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
+        A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
+        x = self.create_array(1, [self.N])
+        y = self.create_array(1, [self.N])
+        tmp = self.create_array(1, [self.M])
+
+        # Initialize data structures
+        self.initialize_array(A, x)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(A, x, y, tmp)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('y', y)]
+
+
+class _AtaxList(Atax):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_AtaxList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, A: list, x: list):
         fn = self.DATA_TYPE(self.N)
 
         for i in range(0, self.N):
             x[i] = 1 + (i / fn)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    A[self.N * i + j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
-        else:
-            for i in range(0, self.M):
-                for j in range(0, self.N):
-                    A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
-
-    def print_array_custom(self, y: list, name: str):
-        for i in range(0, self.N):
-            if i % 20 == 0:
-                self.print_message('\n')
-            self.print_value(y[i])
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[i][j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
 
     def kernel(self, A: list, x: list, y: list, tmp: list):
 # scop begin
@@ -75,7 +123,26 @@ class Atax(PolyBench):
                 y[j] = y[j] + A[i][j] * tmp[i]
 # scop end
 
-    def kernel_flat(self, A: list, x: list, y: list, tmp: list):
+
+class _AtaxListFlattened(Atax):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_AtaxListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, x: list):
+        fn = self.DATA_TYPE(self.N)
+
+        for i in range(0, self.N):
+            x[i] = 1 + (i / fn)
+
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[self.N * i + j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
+
+    def kernel(self, A: list, x: list, y: list, tmp: list):
 # scop begin
         for i in range(0, self.N):
             y[i] = 0
@@ -89,43 +156,35 @@ class Atax(PolyBench):
                 y[j] = y[j] + A[self.N * i + j] * tmp[i]
 # scop end
 
-    def run_benchmark(self):
-        # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.M * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.M, self.N], self.DATA_TYPE(0))
-        x = self.create_array(1, [self.N])
-        y = self.create_array(1, [self.N])
-        tmp = self.create_array(1, [self.M])
 
-        # Initialize data structures
-        self.initialize_array(A, x)
+class _AtaxNumPy(Atax):
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(A, x, y, tmp)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(A, x, y, tmp)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_AtaxList)
 
-        # Return printable data as a list of tuples ('name', value).
-        # Each tuple element must have the following format:
-        #   (A: str, B: matrix)
-        #     - A: a representative name for the data (this string will be printed out)
-        #     - B: the actual data structure holding the computed result
-        #
-        # The syntax for the return statement would then be:
-        #   - For single data structure results:
-        #     return [('data_name', data)]
-        #   - For multiple data structure results:
-        #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('y', y)]
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, x: ndarray):
+        fn = self.DATA_TYPE(self.N)
+
+        for i in range(0, self.N):
+            x[i] = 1 + (i / fn)
+
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[i, j] = self.DATA_TYPE((i + j) % self.N) / (5 * self.M)
+
+    def kernel(self, A: ndarray, x: ndarray, y: ndarray, tmp: ndarray):
+# scop begin
+        for i in range(0, self.N):
+            y[i] = 0
+
+        for i in range(0, self.M):
+            tmp[i] = 0.0
+            for j in range(0, self.N):
+                tmp[i] = tmp[i] + A[i, j] * x[j]
+
+            for j in range(0, self.N):
+                y[j] = y[j] + A[i, j] * tmp[i]
+# scop end

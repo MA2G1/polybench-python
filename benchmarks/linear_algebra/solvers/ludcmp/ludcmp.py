@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Ludcmp(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _LudcmpList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _LudcmpListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _LudcmpNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,6 +51,53 @@ class Ludcmp(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.N = params.get('N')
 
+    def print_array_custom(self, x: list, name: str):
+        for i in range(0, self.N):
+            if i % 20 == 0:
+                self.print_message('\n')
+            self.print_value(x[i])
+
+    def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
+        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        b = self.create_array(1, [self.N], self.DATA_TYPE(0))
+        x = self.create_array(1, [self.N], self.DATA_TYPE(0))
+        y = self.create_array(1, [self.N], self.DATA_TYPE(0))
+
+        # Initialize data structures
+        self.initialize_array(A, b, x, y)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(A, b, x, y)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('x', x)]
+
+
+class _LudcmpList(Ludcmp):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_LudcmpList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, A: list, b: list, x: list, y: list):
         fn = self.DATA_TYPE(self.N)
 
@@ -47,54 +106,26 @@ class Ludcmp(PolyBench):
             y[i] = self.DATA_TYPE(0)
             b[i] = (i + 1) / fn / 2.0 + 4
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                for j in range(0, i + 1):
-                    A[self.N * i + j] = -self.DATA_TYPE(j % self.N) / self.N + 1
-
-                for j in range(i + 1, self.N):
-                    A[self.N * i + j] = self.DATA_TYPE(0)
-                A[self.N * i + i] = self.DATA_TYPE(1)
-
-            # Make the matrix positive semi-definite.
-            # not necessary for LU, but using same code as cholesky
-            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-
-            for t in range(0, self.N):
-                for r in range(0, self.N):
-                    for s in range(0, self.N):
-                        B[self.N * r + s] += A[self.N * r + t] * A[self.N * s + t]
-
-            for r in range(0, self.N):
-                for s in range(0, self.N):
-                    A[self.N * r + s] = B[self.N * r + s]
-        else:
-            for i in range(0, self.N):
-                for j in range(0, i + 1):
-                    A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
-
-                for j in range(i + 1, self.N):
-                    A[i][j] = self.DATA_TYPE(0)
-                A[i][i] = self.DATA_TYPE(1)
-
-            # Make the matrix positive semi-definite.
-            # not necessary for LU, but using same code as cholesky
-            B = self.create_array(2, [self.N], self.DATA_TYPE(0))
-
-            for t in range(0, self.N):
-                for r in range(0, self.N):
-                    for s in range(0, self.N):
-                        B[r][s] += A[r][t] * A[s][t]
-
-            for r in range(0, self.N):
-                for s in range(0, self.N):
-                    A[r][s] = B[r][s]
-
-    def print_array_custom(self, x: list, name: str):
         for i in range(0, self.N):
-            if i % 20 == 0:
-                self.print_message('\n')
-            self.print_value(x[i])
+            for j in range(0, i + 1):
+                A[i][j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+
+            for j in range(i + 1, self.N):
+                A[i][j] = self.DATA_TYPE(0)
+            A[i][i] = self.DATA_TYPE(1)
+
+        # Make the matrix positive semi-definite.
+        # not necessary for LU, but using same code as cholesky
+        B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+
+        for t in range(0, self.N):
+            for r in range(0, self.N):
+                for s in range(0, self.N):
+                    B[r][s] += A[r][t] * A[s][t]
+
+        for r in range(0, self.N):
+            for s in range(0, self.N):
+                A[r][s] = B[r][s]
 
     def kernel(self, A: list, b: list, x: list, y: list):
 # scop begin
@@ -124,7 +155,45 @@ class Ludcmp(PolyBench):
             x[i] = w / A[i][i]
 # scop end
 
-    def kernel_flat(self, A: list, b: list, x: list, y: list):
+
+class _LudcmpListFlattened(Ludcmp):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_LudcmpListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, b: list, x: list, y: list):
+        fn = self.DATA_TYPE(self.N)
+
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(0)
+            y[i] = self.DATA_TYPE(0)
+            b[i] = (i + 1) / fn / 2.0 + 4
+
+        for i in range(0, self.N):
+            for j in range(0, i + 1):
+                A[self.N * i + j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+
+            for j in range(i + 1, self.N):
+                A[self.N * i + j] = self.DATA_TYPE(0)
+            A[self.N * i + i] = self.DATA_TYPE(1)
+
+        # Make the matrix positive semi-definite.
+        # not necessary for LU, but using same code as cholesky
+        B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
+
+        for t in range(0, self.N):
+            for r in range(0, self.N):
+                for s in range(0, self.N):
+                    B[self.N * r + s] += A[self.N * r + t] * A[self.N * s + t]
+
+        for r in range(0, self.N):
+            for s in range(0, self.N):
+                A[self.N * r + s] = B[self.N * r + s]
+
+    def kernel(self, A: list, b: list, x: list, y: list):
 # scop begin
         for i in range(0, self.N):
             for j in range(0, i):
@@ -152,43 +221,68 @@ class Ludcmp(PolyBench):
             x[i] = w / A[self.N * i + i]
 # scop end
 
-    def run_benchmark(self):
-        # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-        b = self.create_array(1, [self.N], self.DATA_TYPE(0))
-        x = self.create_array(1, [self.N], self.DATA_TYPE(0))
-        y = self.create_array(1, [self.N], self.DATA_TYPE(0))
 
-        # Initialize data structures
-        self.initialize_array(A, b, x, y)
+class _LudcmpNumPy(Ludcmp):
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(A, b, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(A, b, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_LudcmpNumPy)
 
-        # Return printable data as a list of tuples ('name', value).
-        # Each tuple element must have the following format:
-        #   (A: str, B: matrix)
-        #     - A: a representative name for the data (this string will be printed out)
-        #     - B: the actual data structure holding the computed result
-        #
-        # The syntax for the return statement would then be:
-        #   - For single data structure results:
-        #     return [('data_name', data)]
-        #   - For multiple data structure results:
-        #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('x', x)]
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, b: ndarray, x: ndarray, y: ndarray):
+        fn = self.DATA_TYPE(self.N)
+
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(0)
+            y[i] = self.DATA_TYPE(0)
+            b[i] = (i + 1) / fn / 2.0 + 4
+
+        for i in range(0, self.N):
+            for j in range(0, i + 1):
+                A[i, j] = -self.DATA_TYPE(j % self.N) / self.N + 1
+
+            for j in range(i + 1, self.N):
+                A[i, j] = self.DATA_TYPE(0)
+            A[i, i] = self.DATA_TYPE(1)
+
+        # Make the matrix positive semi-definite.
+        # not necessary for LU, but using same code as cholesky
+        B = self.create_array(2, [self.N], self.DATA_TYPE(0))
+
+        for t in range(0, self.N):
+            for r in range(0, self.N):
+                for s in range(0, self.N):
+                    B[r, s] += A[r, t] * A[s, t]
+
+        for r in range(0, self.N):
+            for s in range(0, self.N):
+                A[r, s] = B[r, s]
+
+    def kernel(self, A: ndarray, b: ndarray, x: ndarray, y: ndarray):
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, i):
+                w = A[i, j]
+                for k in range(0, j):
+                    w -= A[i, k] * A[k, j]
+                A[i, j] = w / A[j, j]
+
+            for j in range(i, self.N):
+                w = A[i, j]
+                for k in range(0, i):
+                    w -= A[i, k] * A[k, j]
+                A[i, j] = w
+
+        for i in range(0, self.N):
+            w = b[i]
+            for j in range(0, i):
+                w -= A[i, j] * y[j]
+            y[i] = w
+
+        for i in range(self.N - 1, -1, -1):
+            w = y[i]
+            for j in range(i + 1, self.N):
+                w -= A[i, j] * x[j]
+            x[i] = w / A[i, i]
+# scop end

@@ -21,9 +21,11 @@ the different kernels."""
 
 
 # Import the basic elements for searching benchmark implementations
+from platform import python_implementation
+
 from benchmarks import benchmark_classes
-from benchmarks.polybench import PolyBench, PolyBenchParameters
-from benchmarks.polybench import DatasetSize
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import DataSetSize, ArrayImplementation
 import benchmarks.polybench_options as polybench_options
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
@@ -50,7 +52,9 @@ if __name__ == '__main__':
     def parse_command_line() -> {
         'benchmark': str,
         'polybench_options': dict,
-        'verify': bool,
+        'save_results': bool,
+        'verify': dict,
+        'array_implementation': int,
     }:
         """
         Parse command line arguments and generate normalized results.
@@ -63,7 +67,8 @@ if __name__ == '__main__':
         # Default parameter, mandatory
         parser.add_argument('benchmark', metavar='benchmark.py', nargs='?', default=None,
                             help='The path, relative to this script, to any file having a class implementing Polybench.'
-                                 ' All implementations must reside somewhere inside the "benchmarks" folder.')
+                                 ' All implementations must reside somewhere inside the "benchmarks" folder. The '
+                                 'keyword "all" allows to run all of the benchmarks sequentially.')
         # Optional parameters
         parser.add_argument('--polybench-options', dest='options', default=None,
                             help='A comma separated list of options passed to PolyBench. Available options can be found'
@@ -72,14 +77,17 @@ if __name__ == '__main__':
         parser.add_argument('--dataset-size', dest='dataset_size', default=None,
                             help='Specify a working dataset size to use from "polybench.spec" file. Valid values are:'
                                  '"MINI", "SMALL", "MEDIUM", "LARGE", "EXTRALARGE".')
-        parser.add_argument('--output', dest='output', default=None,
+        parser.add_argument('--save-results', dest='save_results', action='store_true',
+                            help='Saves execution results into an automatically named file next to the benchmark '
+                                 'implementation.')
+        parser.add_argument('--output-array', dest='output_array', default=None,
                             help='Alias for POLYBENCH_DUMP_TARGET. Also enables POLYBENCH_DUMP_ARRAYS. Prints the '
                                  'benchmark''s result into a file. In order to print into the console use either '
                                  '"stdout" or "stderr".')
         parser.add_argument('--verify-file', dest='verify_file_name', default=None,
                             help='Verify the results of the benchmark against the results stored in a file. This '
-                                 'option enables --output and makes the output file to target a file name whose name '
-                                 'matches the one passed by this argument, appending the .verify suffix. When the '
+                                 'option enables --output-array and makes the output file to target a file name whose '
+                                 'name matches the one passed by this argument, appending the .verify suffix. When the '
                                  'benchmark terminates, its result is compared and a message indicating the comparison '
                                  'result will be printed on "stdout".')
         parser.add_argument('--verify-polybench-path', dest='verify_polybench_path', default=None,
@@ -90,6 +98,9 @@ if __name__ == '__main__':
                                  'default behavior when PolyBench/C is run from Perl scripts.')
         parser.add_argument('--time-benchmark', dest='time_benchmark', action='store_true',
                             help='Performs 5 runs of the benchmark and calculates the mean time.')
+        parser.add_argument('--array-implementation', dest='array_implementation', default=0,
+                            help='Allows to select the internal array implementation in use. 0: Python List; 1: Python '
+                                 'List with flattened indexes; 2: NumPy array. Default: 0.')
         # Parse the commandline arguments. This process will fail on error
         args = parser.parse_args()
 
@@ -102,12 +113,14 @@ if __name__ == '__main__':
         result = {
             'benchmark': None,  # should hold a string
             'polybench_options': None,  # should hold a dict with options
+            'save_results': False,  # Allows to save execution results into a file
             'verify': {
                 'enabled': False,  # Controls whether to verify results or not
-                'file': None,      # The file name to verify against
-                'path': None,      # The path to PolyBench/C
-                'full_path': None
+                'file': '',        # The file name to verify against
+                'path': '',        # The path to PolyBench/C
+                'full_path': ''
             },
+            'array_implementation': ArrayImplementation.LIST,
         }
 
         # Blindly replace the directory separator character with a commonly supported forward slash.
@@ -130,20 +143,20 @@ if __name__ == '__main__':
                 handle = stdout
             else:
                 handle = open(file_name, 'w', newline='\n')
-            result['output'] = handle
+            result['output_array'] = handle
 
-        # Process the "output" argument
-        if not (args.output is None):
-            set_output(args.output)
+        # Process the "output_array" argument
+        if not (args.output_array is None):
+            set_output(args.output_array)
             print_result = True
         else:
             set_output('stderr')  # Just setting a default value
 
-        # Process the "verify" arguments. May alter 'output'
+        # Process the "verify" arguments. May alter 'output_array'
         result['verify'] = {
             'enabled': False
         }
-        if not (args.verify_file_name is None):
+        if not (args.verify_file_name is None) and result['benchmark'] != 'all':
             result['verify']['enabled'] = True
             result['verify']['file'] = str(args.verify_file_name)
             set_output(args.verify_file_name + '.verify')
@@ -155,7 +168,7 @@ if __name__ == '__main__':
         # Check if the arguments passed to "verify*" are valid
         if result['verify']['enabled']:
             # Calculate the full file name (path + file)
-            if result['verify']['path'] is None:
+            if result['verify']['path'] == '':
                 result['verify']['full_path'] = result['verify']['file']
             else:
                 # PolyBench/C path given. Search the appropriate category/benchmark
@@ -213,18 +226,40 @@ if __name__ == '__main__':
         # Custom command line options can override output printing (the verify option). Update polybench_options
         if print_result:
             result['polybench_options'][polybench_options.POLYBENCH_DUMP_ARRAYS] = True
-            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output']
+            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output_array']
 
         # Append the dataset size if required
         if not (args.dataset_size is None):
             # Try to set the enumeration value from user input. On error, an exception is raised.
-            if args.dataset_size not in [DatasetSize.MINI.name, DatasetSize.SMALL.name, DatasetSize.MEDIUM.name,
-                                         DatasetSize.LARGE.name, DatasetSize.EXTRA_LARGE.name]:
+            if args.dataset_size not in [DataSetSize.MINI.name, DataSetSize.SMALL.name, DataSetSize.MEDIUM.name,
+                                         DataSetSize.LARGE.name, DataSetSize.EXTRA_LARGE.name]:
                 raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
-            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DatasetSize[args.dataset_size]
+            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DataSetSize[args.dataset_size]
 
         # Process time_benchmark, it is either False or True
-        result['time_benchmark'] = args.time_benchmark
+        # This sets the number of times a benchmarks is run. 5 when averaging, 1 when not.
+        result['iterations'] = 5 if args.time_benchmark else 1
+
+        # Process array implementation
+        if str(args.array_implementation).isnumeric():
+            n = int(args.array_implementation)
+            if n < 0 or n > 2:
+                n = 0  # default
+
+            if n == 0:
+                result['array_implementation'] = ArrayImplementation.LIST
+            elif n == 1:
+                result['array_implementation'] = ArrayImplementation.LIST_FLATTENED
+            elif n == 2:
+                result['array_implementation'] = ArrayImplementation.NUMPY
+        else:
+            raise AssertionError('Argument "array-implementation" must be a number.')
+
+        # Process save results. Only save when results are available (POLYBENCH_TIME or POLYBENCH_PAPI)
+        if args.save_results:
+            opts = result['polybench_options']
+            if opts[polybench_options.POLYBENCH_TIME] or opts[polybench_options.POLYBENCH_PAPI]:
+                result['save_results'] = True
 
         return result
 
@@ -296,7 +331,7 @@ if __name__ == '__main__':
         """Compare two files and report if they match or not.
 
         This validation is intentionally very simple. In case of error, the user must manually compare the results"""
-        output_file_name = options['output'].name
+        output_file_name = options['output_array'].name
         verify_file_name = options['verify']['full_path']
 
         print(f'Verifying if files "{output_file_name}" and "{verify_file_name}" match... ', end='')
@@ -307,52 +342,119 @@ if __name__ == '__main__':
             print('Please, check contents manually.')
 
 
-    def run(options: dict, parameters: PolyBenchParameters) -> None:
+    def get_output_file(module_name: str, options: dict):
+        output_str = module_name
+
+        # Append interpreter name
+        output_str += '_' + python_implementation()
+
+        # Append measurement type information
+        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
+            if options['polybench_options'][polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]:
+                output_str += '_timer-ca'
+            else:
+                output_str += '_timer'
+        elif options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+            output_str += '_papi'
+
+        # Append array type implementation
+        if options['array_implementation'] == ArrayImplementation.LIST:
+            output_str += '_array=list'
+        elif options['array_implementation'] == ArrayImplementation.LIST_FLATTENED:
+            output_str += '_array=flattenedlist'
+        else:
+            output_str += '_array=numpy'
+        output_str += '.output'
+        return open(output_str, 'w')
+
+
+    def run(options: dict, spec_params: list) -> None:
         # Set up parameters which may modify execution behavior
         module_name = options['benchmark']
         # Parameters used in case of verification
         verify_result = options['verify']
+        iterations = options['iterations']
 
-        # Search the module within available implementations
         instance = None
+        # Search the module within available implementations
         for implementation in benchmark_classes:
-            if implementation.__module__ == module_name:
-                # Module found! Instantiate a new class with it
-                instance = implementation(options['polybench_options'], parameters)  # creates a new instance
+            if module_name == 'all' or implementation.__module__ == module_name:
+                # Module found!
 
-        # Check if the module was found
+                # TODO: remove this debug messages
+                if True:
+                    print(f'Running {implementation.__module__}')
+                    from datetime import datetime
+                    print(f'  Start time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+                    print(f'  Interpreter: {python_implementation()}')
+                    print(f'  Options: ')
+                    print(f'    (iterations, {iterations})')
+                    ooo = options['polybench_options']
+                    print(f'    {polybench_options.POLYBENCH_TIME, ooo[polybench_options.POLYBENCH_TIME]}')
+                    print(f'    {polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER, ooo[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]}')
+                    print(f'    {polybench_options.POLYBENCH_PAPI, ooo[polybench_options.POLYBENCH_PAPI]}')
+                    print(f'    (Array, {options["array_implementation"]})')
+
+                # Retrieve the appropriate parameters for initializing the current class
+                bench_params = {}
+                non_pythonic_benchmark = implementation.__module__.replace('_', '-')
+                for spec in spec_params:
+                    if spec['kernel'] in non_pythonic_benchmark:
+                        bench_params = spec
+                        break
+                # Create a parameters object for passing to the benchmark
+                parameters = PolyBenchParameters(bench_params)
+
+                if options['save_results']:
+                    output_f = get_output_file(implementation.__module__.replace('.', '/'), options)
+
+                first_run = True  # For printing available columns on PAPI result
+
+                # Run the benchmark N times. N will be either 1 or a greater number passed by argument.
+                for i in range(iterations):
+                    # Instantiate a new class with it
+                    instance = implementation(options, parameters)  # creates a new instance
+                    # Run the benchmark. The returned value is a dictionary.
+                    polybench_result = instance.run()
+
+                    if options['save_results']:
+                        # Perform operations against the output data when the appropriate option is enabled.
+                        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
+                            output_f.write(f'{polybench_result[polybench_options.POLYBENCH_TIME]}\n')
+                            output_f.flush()
+
+                        if options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+                            if first_run:
+                                # Print headers
+                                for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
+                                    output_f.write(f'{counter}\t')
+                                output_f.write('\n')
+                            for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
+                                output_f.write(f'{polybench_result[polybench_options.POLYBENCH_PAPI][counter]}\t')
+                            output_f.write('\n')
+                            output_f.flush()
+
+                    first_run = False
+                if options['save_results']:
+                    output_f.close()
+
+                # Verify benchmark's results against other implementation's results
+                if verify_result['enabled']:
+                    validate_benchmark_results(options)
+
+                # Terminate the loop for single-benchmark run
+                if module_name != 'all':
+                    break
+
+        # Check if the module was not found and report an error accordingly
         if instance is None:
             module = module_name.replace(".", "/") + '.py'
             raise NotImplementedError(f'Module {module} not implemented.')
-
-        # When the module was found, run it.
-        if isinstance(instance, PolyBench):
-            if options['time_benchmark']:
-                bench_times = []
-                for i in range(0, 5):
-                    bench_times.append(instance.run())
-                import statistics
-                statistics.mean(bench_times)
-            else:
-                instance.run()
-
-            # Verify benchmark's results against other implementation's results
-            if verify_result:
-                validate_benchmark_results(options)
 
 
     # Parse the command line arguments first. We need at least one mandatory parameter.
     opts = parse_command_line()
     # Parse the spec file for obtaining all of the benchmark's parameters
     spec_params = parse_spec_file()
-    # Filter out the parameters and pick only the one for the current benchmark
-    bench_params = {}
-    non_pythonic_benchmark = opts['benchmark'].replace('_', '-')
-    for spec in spec_params:
-        if spec['kernel'] in non_pythonic_benchmark:
-            bench_params = spec
-            break
-    # Create a parameters object for passing to the benchmark
-    params = PolyBenchParameters(bench_params)
     # Run the benchmark (and other user options)
-    run(opts, params)
+    run(opts, spec_params)

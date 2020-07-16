@@ -1,5 +1,5 @@
-# Copyright 2019 Miguel Angel Abella Gonzalez <miguel.abella@udc.es>
 #
+# Copyright 2019 Miguel Angel Abella Gonzalez <miguel.abella@udc.es>
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Gesummv(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _GesummvList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _GesummvListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _GesummvNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,59 +51,19 @@ class Gesummv(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.N = params.get('N')
 
-    def initialize_array(self, A: list, B: list, x: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.N):
-                x[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.N):
-                    A[self.N * i + j] = self.DATA_TYPE((i * j+1) % self.N) / self.N
-                    B[self.N * i + j] = self.DATA_TYPE((i * j+2) % self.N) / self.N
-        else:
-            for i in range(0, self.N):
-                x[i] = self.DATA_TYPE(i % self.N) / self.N
-                for j in range(0, self.N):
-                    A[i][j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
-                    B[i][j] = self.DATA_TYPE((i * j + 2) % self.N) / self.N
-
     def print_array_custom(self, y: list, name: str):
         for i in range(0, self.N):
             if i % 20 == 0:
                 self.print_message('\n')
             self.print_value(y[i])
 
-    def kernel(self, alpha, beta, A: list, B: list, tmp: list, x: list, y: list):
-# scop begin
-        for i in range(0, self.N):
-            tmp[i] = 0.0
-            y[i] = 0.0
-            for j in range(0, self.N):
-                tmp[i] = A[i][j] * x[j] + tmp[i]
-                y[i] = B[i][j] * x[j] + y[i]
-            y[i] = alpha * tmp[i] + beta * y[i]
-# scop end
-
-    def kernel_flat(self, alpha, beta, A: list, B: list, tmp: list, x: list, y: list):
-# scop begin
-        for i in range(0, self.N):
-            tmp[i] = 0.0
-            y[i] = 0.0
-            for j in range(0, self.N):
-                tmp[i] = A[self.N * i + j] * x[j] + tmp[i]
-                y[i] = B[self.N * i + j] * x[j] + y[i]
-            y[i] = alpha * tmp[i] + beta * y[i]
-# scop end
-
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
         alpha = 1.5
         beta = 1.2
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            A = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.N * self.N], self.DATA_TYPE(0))
-        else:
-            A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.N, self.N], self.DATA_TYPE(0))
         tmp = self.create_array(1, [self.N], self.DATA_TYPE(0))
         x = self.create_array(1, [self.N], self.DATA_TYPE(0))
         y = self.create_array(1, [self.N], self.DATA_TYPE(0))
@@ -99,20 +71,14 @@ class Gesummv(PolyBench):
         # Initialize data structures
         self.initialize_array(A, B, x)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, beta, A, B, tmp, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, beta, A, B, tmp, x, y)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, beta, A, B, tmp, x, y)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
@@ -126,3 +92,84 @@ class Gesummv(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('y', y)]
+
+
+class _GesummvList(Gesummv):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GesummvList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list, x: list):
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.N):
+                A[i][j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+                B[i][j] = self.DATA_TYPE((i * j + 2) % self.N) / self.N
+
+    def kernel(self, alpha, beta, A: list, B: list, tmp: list, x: list, y: list):
+# scop begin
+        for i in range(0, self.N):
+            tmp[i] = 0.0
+            y[i] = 0.0
+            for j in range(0, self.N):
+                tmp[i] = A[i][j] * x[j] + tmp[i]
+                y[i] = B[i][j] * x[j] + y[i]
+            y[i] = alpha * tmp[i] + beta * y[i]
+# scop end
+
+
+class _GesummvListFlattened(Gesummv):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GesummvListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list, x: list):
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.N):
+                A[self.N * i + j] = self.DATA_TYPE((i * j+1) % self.N) / self.N
+                B[self.N * i + j] = self.DATA_TYPE((i * j+2) % self.N) / self.N
+
+    def kernel(self, alpha, beta, A: list, B: list, tmp: list, x: list, y: list):
+# scop begin
+        for i in range(0, self.N):
+            tmp[i] = 0.0
+            y[i] = 0.0
+            for j in range(0, self.N):
+                tmp[i] = A[self.N * i + j] * x[j] + tmp[i]
+                y[i] = B[self.N * i + j] * x[j] + y[i]
+            y[i] = alpha * tmp[i] + beta * y[i]
+# scop end
+
+
+class _GesummvNumPy(Gesummv):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GesummvNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, B: ndarray, x: ndarray):
+        for i in range(0, self.N):
+            x[i] = self.DATA_TYPE(i % self.N) / self.N
+            for j in range(0, self.N):
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+                B[i, j] = self.DATA_TYPE((i * j + 2) % self.N) / self.N
+
+    def kernel(self, alpha, beta, A: ndarray, B: ndarray, tmp: ndarray, x: ndarray, y: ndarray):
+# scop begin
+        for i in range(0, self.N):
+            tmp[i] = 0.0
+            y[i] = 0.0
+            for j in range(0, self.N):
+                tmp[i] = A[i, j] * x[j] + tmp[i]
+                y[i] = B[i, j] * x[j] + y[i]
+            y[i] = alpha * tmp[i] + beta * y[i]
+# scop end

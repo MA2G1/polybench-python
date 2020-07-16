@@ -14,11 +14,23 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 import math
 
 
 class Deriche(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _DericheList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _DericheListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _DericheNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,30 +53,61 @@ class Deriche(PolyBench):
         self.W = params.get('W')
         self.H = params.get('H')
 
+    def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
+        alpha = 0.25
+
+        imgIn = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
+        imgOut = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
+        y1 = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
+        y2 = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
+
+        # Initialize data structures
+        self.initialize_array(imgIn, imgOut)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, imgIn, imgOut, y1, y2)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('imgOut', imgOut)]
+
+
+class _DericheList(Deriche):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DericheList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, imgIn: list, imgOut: list):
         # input should be between 0 and 1 (grayscale image pixel)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.W):
-                for j in range(0, self.H):
-                    imgIn[self.H * i + j] = self.DATA_TYPE((313 * i + 991 * j) % 65536) / 65535.0
-        else:
-            for i in range(0, self.W):
-                for j in range(0, self.H):
-                    imgIn[i][j] = self.DATA_TYPE((313 * i + 991 * j) % 65536) / 65535.0
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                imgIn[i][j] = self.DATA_TYPE((313 * i + 991 * j) % 65536) / 65535.0
 
     def print_array_custom(self, imgOut: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.W):
-                for j in range(0, self.H):
-                    if (i * self.H + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(imgOut[self.H * i + j])
-        else:
-            for i in range(0, self.W):
-                for j in range(0, self.H):
-                    if (i * self.H + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(imgOut[i][j])
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                if (i * self.H + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(imgOut[i][j])
 
     def kernel(self, alpha, imgIn: list, imgOut: list, y1: list, y2: list):
 # scop begin
@@ -131,7 +174,29 @@ class Deriche(PolyBench):
                 imgOut[i][j] = c2 * (y1[i][j] + y2[i][j])
 # scop end
 
-    def kernel_flat(self, alpha, imgIn: list, imgOut: list, y1: list, y2: list):
+
+class _DericheListFlattened(Deriche):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DericheListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, imgIn: list, imgOut: list):
+        # input should be between 0 and 1 (grayscale image pixel)
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                imgIn[self.H * i + j] = self.DATA_TYPE((313 * i + 991 * j) % 65536) / 65535.0
+
+    def print_array_custom(self, imgOut: list, name: str):
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                if (i * self.H + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(imgOut[self.H * i + j])
+
+    def kernel(self, alpha, imgIn: list, imgOut: list, y1: list, y2: list):
 # scop begin
         k = (1.0 - math.exp(-alpha)) * (1.0 - math.exp(-alpha)) / (
                 1.0 + 2.0 * alpha * math.exp(-alpha) - math.exp(2.0 * alpha))
@@ -196,48 +261,89 @@ class Deriche(PolyBench):
                 imgOut[self.H * i + j] = c2 * (y1[self.H * i + j] + y2[self.H * i + j])
 # scop end
 
-    def run_benchmark(self):
-        # Create data structures (arrays, auxiliary variables, etc.)
-        alpha = 0.25
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            imgIn = self.create_array(1, [self.W * self.H], self.DATA_TYPE(0))
-            imgOut = self.create_array(1, [self.W * self.H], self.DATA_TYPE(0))
-            y1 = self.create_array(1, [self.W * self.H], self.DATA_TYPE(0))
-            y2 = self.create_array(1, [self.W * self.H], self.DATA_TYPE(0))
-        else:
-            imgIn = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
-            imgOut = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
-            y1 = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
-            y2 = self.create_array(2, [self.W, self.H], self.DATA_TYPE(0))
+class _DericheNumPy(Deriche):
 
-        # Initialize data structures
-        self.initialize_array(imgIn, imgOut)
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DericheNumPy)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, imgIn, imgOut, y1, y2)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, imgIn, imgOut, y1, y2)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
 
-        # Return printable data as a list of tuples ('name', value).
-        # Each tuple element must have the following format:
-        #   (A: str, B: matrix)
-        #     - A: a representative name for the data (this string will be printed out)
-        #     - B: the actual data structure holding the computed result
-        #
-        # The syntax for the return statement would then be:
-        #   - For single data structure results:
-        #     return [('data_name', data)]
-        #   - For multiple data structure results:
-        #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('imgOut', imgOut)]
+    def initialize_array(self, imgIn: ndarray, imgOut: ndarray):
+        # input should be between 0 and 1 (grayscale image pixel)
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                imgIn[i, j] = self.DATA_TYPE((313 * i + 991 * j) % 65536) / 65535.0
+
+    def print_array_custom(self, imgOut: ndarray, name: str):
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                if (i * self.H + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(imgOut[i, j])
+
+    def kernel(self, alpha, imgIn: ndarray, imgOut: ndarray, y1: ndarray, y2: ndarray):
+# scop begin
+        k = (1.0 - math.exp(-alpha)) * (1.0 - math.exp(-alpha)) / (
+            1.0 + 2.0 * alpha * math.exp(-alpha) - math.exp(2.0 * alpha))
+        a1 = a5 = k
+        a2 = a6 = k * math.exp(-alpha) * (alpha - 1.0)
+        a3 = a7 = k * math.exp(-alpha) * (alpha + 1.0)
+        a4 = a8 = -k * math.exp(-2.0 * alpha)
+        b1 = math.pow(2.0, -alpha)
+        b2 = -math.exp(-2.0 * alpha)
+        c1 = c2 = 1
+
+        for i in range(0, self.W):
+            ym1 = 0.0
+            ym2 = 0.0
+            xm1 = 0.0
+            for j in range(0, self.H):
+                y1[i, j] = a1*imgIn[i, j] + a2*xm1 + b1*ym1 + b2*ym2
+                xm1 = imgIn[i, j]
+                ym2 = ym1
+                ym1 = y1[i, j]
+
+        for i in range(0, self.W):
+            yp1 = 0.0
+            yp2 = 0.0
+            xp1 = 0.0
+            xp2 = 0.0
+            for j in range(self.H - 1, -1, -1):
+                y2[i, j] = a3 * xp1 + a4 * xp2 + b1 * yp1 + b2 * yp2
+                xp2 = xp1
+                xp1 = imgIn[i, j]
+                yp2 = yp1
+                yp1 = y2[i, j]
+
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                imgOut[i, j] = c1 * (y1[i, j] + y2[i, j])
+
+        for j in range(0, self.H):
+            tm1 = 0.0
+            ym1 = 0.0
+            ym2 = 0.0
+            for i in range(0, self.W):
+                y1[i, j] = a5 * imgOut[i, j] + a6 * tm1 + b1 * ym1 + b2 * ym2
+                tm1 = imgOut[i, j]
+                ym2 = ym1
+                ym1 = y1[i, j]
+
+        for j in range(0, self.H):
+            tp1 = 0.0
+            tp2 = 0.0
+            yp1 = 0.0
+            yp2 = 0.0
+            for i in range(self.W - 1, -1, -1):
+                y2[i, j] = a7 * tp1 + a8 * tp2 + b1 * yp1 + b2 * yp2
+                tp2 = tp1
+                tp1 = imgOut[i, j]
+                yp2 = yp1
+                yp1 = y2[i, j]
+
+        for i in range(0, self.W):
+            for j in range(0, self.H):
+                imgOut[i, j] = c2 * (y1[i, j] + y2[i, j])
+# scop end

@@ -13,6 +13,25 @@
 """This module defines all of the available options for PolyBench."""
 
 from sys import stderr
+from enum import Enum, auto
+
+
+class DataSetSize(Enum):
+    """Define the possible values for selecting DataSetSize sizes.
+
+    Instead of manually managing the values of this enumeration we let the python interpreter initialize them.
+    """
+    MINI = auto()
+    SMALL = auto()
+    MEDIUM = auto()
+    LARGE = auto()
+    EXTRA_LARGE = auto()
+
+
+class ArrayImplementation(Enum):
+    LIST = auto()
+    LIST_FLATTENED = auto()
+    NUMPY = auto()
 
 
 # Typical options
@@ -59,7 +78,7 @@ polybench_default_options = {
     POLYBENCH_GFLOPS: False,
     POLYBENCH_PAPI_VERBOSE: False,
     # Custom options
-    POLYBENCH_DATASET_SIZE: None,  # Should be initialized by PolyBench
+    POLYBENCH_DATASET_SIZE: DataSetSize.LARGE,  # Should be initialized by PolyBench
     # PolyBench/Python options
     POLYBENCH_FLATTEN_LISTS: False,
 }

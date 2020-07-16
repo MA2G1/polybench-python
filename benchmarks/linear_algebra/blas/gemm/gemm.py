@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Gemm(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _GemmList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _GemmListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _GemmNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,100 +53,27 @@ class Gemm(PolyBench):
         self.NJ = params.get('NJ')
         self.NK = params.get('NK')
 
-    def initialize_array(self, C: list, A: list, B: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NJ):
-                    C[self.NJ * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
-
-            for i in range(0, self.NI):
-                for j in range(0, self.NK):
-                    A[self.NK * i + j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
-
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[self.NJ * i + j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NJ):
-                    C[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
-
-            for i in range(0, self.NI):
-                for j in range (0, self.NK):
-                    A[i][j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
-
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[i][j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
-
-    def print_array_custom(self, C: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NJ):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(C[self.NJ * i + j])
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NJ):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(C[i][j])
-
-    def kernel(self, alpha: float, beta: float, C: list, A: list, B: list):
-# scop begin
-        for i in range(0, self.NI):
-            for j in range(0, self.NJ):
-                C[i][j] *= beta
-
-            for k in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    C[i][j] += alpha * A[i][k] * B[k][j]
-# scop end
-
-    def kernel_flat(self, alpha: float, beta: float, C: list, A: list, B: list):
-# scop begin
-        for i in range(0, self.NI):
-            for j in range(0, self.NJ):
-                C[self.NJ * i + j] *= beta
-
-            for k in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    C[self.NJ * i + j] += alpha * A[self.NK * i + k] * B[self.NJ * k + j]
-
-# scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
         alpha = 1.5
         beta = 1.2
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            C = self.create_array(1, [self.NI * self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(1, [self.NI * self.NK], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.NK * self.NJ], self.DATA_TYPE(0))
-        else:
-            C = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
+        C = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(C, A, B)
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(alpha, beta, C, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(alpha, beta, C, A, B)
-            # Stop and print instruments
-            self.stop_instruments()
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(alpha, beta, C, A, B)
+
+        # Stop and print instruments
+        self.stop_instruments()
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
@@ -148,3 +87,123 @@ class Gemm(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('C', C)]
+
+
+class _GemmList(Gemm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GemmList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: list, A: list, B: list):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NI):
+            for j in range (0, self.NK):
+                A[i][j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i][j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
+
+    def print_array_custom(self, C: list, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[i][j])
+
+    def kernel(self, alpha: float, beta: float, C: list, A: list, B: list):
+# scop begin
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[i][j] *= beta
+
+            for k in range(0, self.NK):
+                for j in range(0, self.NJ):
+                    C[i][j] += alpha * A[i][k] * B[k][j]
+# scop end
+
+
+class _GemmListFlattened(Gemm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GemmListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: list, A: list, B: list):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[self.NJ * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[self.NK * i + j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[self.NJ * i + j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
+
+    def print_array_custom(self, C: list, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[self.NJ * i + j])
+
+    def kernel(self, alpha: float, beta: float, C: list, A: list, B: list):
+# scop begin
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[self.NJ * i + j] *= beta
+
+            for k in range(0, self.NK):
+                for j in range(0, self.NJ):
+                    C[self.NJ * i + j] += alpha * A[self.NK * i + k] * B[self.NJ * k + j]
+# scop end
+
+
+class _GemmNumPy(Gemm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GemmNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: ndarray, A: ndarray, B: ndarray):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NI):
+            for j in range (0, self.NK):
+                A[i, j] = self.DATA_TYPE(i * (j + 1) % self.NK) / self.NK
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i, j] = self.DATA_TYPE(i * (j + 2) % self.NJ) / self.NJ
+
+    def print_array_custom(self, C: ndarray, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[i, j])
+
+    def kernel(self, alpha: float, beta: float, C: ndarray, A: ndarray, B: ndarray):
+# scop begin
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                C[i, j] *= beta
+
+            for k in range(0, self.NK):
+                for j in range(0, self.NJ):
+                    C[i, j] += alpha * A[i, k] * B[k, j]
+# scop end

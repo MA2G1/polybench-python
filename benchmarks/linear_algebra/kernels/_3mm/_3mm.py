@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class _3mm(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _3mmList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _3mmListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _3mmNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -43,53 +55,73 @@ class _3mm(PolyBench):
         self.NL = params.get('NL')
         self.NM = params.get('NM')
 
+    def run_benchmark(self):
+        # Create data structures (arrays, auxiliary variables, etc.)
+        E = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
+        A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
+        B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
+        F = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
+        C = self.create_array(2, [self.NJ, self.NM], self.DATA_TYPE(0))
+        D = self.create_array(2, [self.NM, self.NL], self.DATA_TYPE(0))
+        G = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
+
+        # Initialize data structures
+        self.initialize_array(A, B, C, D)
+
+        # Start instruments
+        self.start_instruments()
+
+        # Run kernel
+        self.kernel(E, A, B, F, C, D, G)
+
+        # Stop and print instruments
+        self.stop_instruments()
+
+        # Return printable data as a list of tuples ('name', value).
+        # Each tuple element must have the following format:
+        #   (A: str, B: matrix)
+        #     - A: a representative name for the data (this string will be printed out)
+        #     - B: the actual data structure holding the computed result
+        #
+        # The syntax for the return statement would then be:
+        #   - For single data structure results:
+        #     return [('data_name', data)]
+        #   - For multiple data structure results:
+        #     return [('matrix1', m1), ('matrix2', m2), ... ]
+        return [('G', G)]
+
+
+class _3mmList(_3mm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_3mmList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
     def initialize_array(self, A: list, B: list, C: list, D: list):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NK):
-                    A[self.NK * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
 
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[self.NJ * i + j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i][j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
 
-            for i in range(0, self.NJ):
-                for j in range(0, self.NM):
-                    C[self.NM * i + j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
+        for i in range(0, self.NJ):
+            for j in range(0, self.NM):
+                C[i][j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
 
-            for i in range(0, self.NM):
-                for j in range(0, self.NL):
-                    D[self.NL * i + j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NK):
-                    A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
-
-            for i in range(0, self.NK):
-                for j in range(0, self.NJ):
-                    B[i][j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
-
-            for i in range(0, self.NJ):
-                for j in range(0, self.NM):
-                    C[i][j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
-
-            for i in range(0, self.NM):
-                for j in range(0, self.NL):
-                    D[i][j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
+        for i in range(0, self.NM):
+            for j in range(0, self.NL):
+                D[i][j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
 
     def print_array_custom(self, G: list, name: str):
-        if self.POLYBENCH_FLATTEN_LISTS:
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(G[self.NL * i + j])
-        else:
-            for i in range(0, self.NI):
-                for j in range(0, self.NL):
-                    if (i * self.NI + j) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(G[i][j])
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(G[i][j])
 
     def kernel(self, E: list, A: list, B: list, F: list, C: list, D: list, G: list):
 # scop begin
@@ -115,7 +147,40 @@ class _3mm(PolyBench):
                     G[i][j] += E[i][k] * F[k][j]
 # scop end
 
-    def kernel_flat(self, E: list, A: list, B: list, F: list, C: list, D: list, G: list):
+
+class _3mmListFlattened(_3mm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_3mmListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list, C: list, D: list):
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[self.NK * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[self.NJ * i + j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
+
+        for i in range(0, self.NJ):
+            for j in range(0, self.NM):
+                C[self.NM * i + j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
+
+        for i in range(0, self.NM):
+            for j in range(0, self.NL):
+                D[self.NL * i + j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
+
+    def print_array_custom(self, G: list, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(G[self.NL * i + j])
+
+    def kernel(self, E: list, A: list, B: list, F: list, C: list, D: list, G: list):
 # scop begin
         # E := A * B
         for i in range(0, self.NI):
@@ -139,52 +204,59 @@ class _3mm(PolyBench):
                     G[self.NL * i + j] += E[self.NJ * i + k] * F[self.NL * k + j]
 # scop end
 
-    def run_benchmark(self):
-        # Create data structures (arrays, auxiliary variables, etc.)
-        if self.POLYBENCH_FLATTEN_LISTS:
-            E = self.create_array(1, [self.NI * self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(1, [self.NI * self.NK], self.DATA_TYPE(0))
-            B = self.create_array(1, [self.NK * self.NJ], self.DATA_TYPE(0))
-            F = self.create_array(1, [self.NJ * self.NL], self.DATA_TYPE(0))
-            C = self.create_array(1, [self.NJ * self.NM], self.DATA_TYPE(0))
-            D = self.create_array(1, [self.NM * self.NL], self.DATA_TYPE(0))
-            G = self.create_array(1, [self.NI * self.NL], self.DATA_TYPE(0))
-        else:
-            E = self.create_array(2, [self.NI, self.NJ], self.DATA_TYPE(0))
-            A = self.create_array(2, [self.NI, self.NK], self.DATA_TYPE(0))
-            B = self.create_array(2, [self.NK, self.NJ], self.DATA_TYPE(0))
-            F = self.create_array(2, [self.NJ, self.NL], self.DATA_TYPE(0))
-            C = self.create_array(2, [self.NJ, self.NM], self.DATA_TYPE(0))
-            D = self.create_array(2, [self.NM, self.NL], self.DATA_TYPE(0))
-            G = self.create_array(2, [self.NI, self.NL], self.DATA_TYPE(0))
 
-        # Initialize data structures
-        self.initialize_array(A, B, C, D)
+class _3mmNumPy(_3mm):
 
-        if self.POLYBENCH_FLATTEN_LISTS:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel_flat(E, A, B, F, C, D, G)
-            # Stop and print instruments
-            self.stop_instruments()
-        else:
-            # Start instruments
-            self.start_instruments()
-            # Run kernel
-            self.kernel(E, A, B, F, C, D, G)
-            # Stop and print instruments
-            self.stop_instruments()
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_3mmNumPy)
 
-        # Return printable data as a list of tuples ('name', value).
-        # Each tuple element must have the following format:
-        #   (A: str, B: matrix)
-        #     - A: a representative name for the data (this string will be printed out)
-        #     - B: the actual data structure holding the computed result
-        #
-        # The syntax for the return statement would then be:
-        #   - For single data structure results:
-        #     return [('data_name', data)]
-        #   - For multiple data structure results:
-        #     return [('matrix1', m1), ('matrix2', m2), ... ]
-        return [('G', G)]
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, B: ndarray, C: ndarray, D: ndarray):
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / (5 * self.NI)
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i, j] = self.DATA_TYPE((i * (j + 1) + 2) % self.NJ) / (5 * self.NJ)
+
+        for i in range(0, self.NJ):
+            for j in range(0, self.NM):
+                C[i, j] = self.DATA_TYPE(i * (j + 3) % self.NL) / (5 * self.NL)
+
+        for i in range(0, self.NM):
+            for j in range(0, self.NL):
+                D[i, j] = self.DATA_TYPE((i * (j + 2) + 2) % self.NK) / (5 * self.NK)
+
+    def print_array_custom(self, G: ndarray, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(G[i, j])
+
+    def kernel(self, E: ndarray, A: ndarray, B: ndarray, F: ndarray, C: ndarray, D: ndarray, G: ndarray):
+# scop begin
+        # E := A * B
+        for i in range(0, self.NI):
+            for j in range(0, self.NJ):
+                E[i, j] = 0.0
+                for k in range(0, self.NK):
+                    E[i, j] += A[i, k] * B[k, j]
+
+        # F := C * D
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                F[i, j] = 0.0
+                for k in range(0, self.NM):
+                    F[i, j] += C[i, k] * D[k, j]
+
+        # G := E * F
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                G[i, j] = 0.0
+                for k in range(0, self.NJ):
+                    G[i, j] += E[i, k] * F[k, j]
+# scop end
