@@ -13,12 +13,14 @@
 # limitations under the License.
 
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
+from benchmarks.polybench_options import DataSetSize, ArrayImplementation
 import benchmarks.polybench_options as polybench_options
 
 from platform import python_implementation  # Used to determine "inline" C code usage
-from enum import Enum, auto
 from sys import stderr
 from time import time
+
+import numpy
 
 # Import requirements for PAPI
 from pypapi import events as papi_events, papi_high
@@ -28,55 +30,6 @@ from inlineasm import assemble
 from ctypes import c_ulonglong
 
 import os
-
-from packages.array.multidimensional_arrays import MultidimensionalArrayFactory, MultidimensionalArrayImplementation
-
-
-class DatasetSize(Enum):
-    """Define the possible values for selecting dataset sizes.
-
-    Instead of manually managing the values of this enumeration we let the python interpreter initialize them.
-    """
-    MINI = auto()
-    SMALL = auto()
-    MEDIUM = auto()
-    LARGE = auto()
-    EXTRA_LARGE = auto()
-
-
-class PolyBenchParameters:
-    """Stores all parameters required for a benchmark, obtained from a spec file.
-    """
-
-    def __init__(self, parameters: dict):
-        """Process the parameters dictionary and store its values on public class fields."""
-        self.Name = parameters['kernel']
-        self.Category = parameters['category']
-
-        if parameters['datatype'] == 'float' or parameters['datatype'] == 'double':
-            self.DataType = float
-        else:
-            self.DataType = int
-
-        mini_dict = {}
-        small_dict = {}
-        medium_dict = {}
-        large_dict = {}
-        extra_large_dict = {}
-        for i in range(0, len(parameters['params'])):
-            mini_dict[parameters['params'][i]] = parameters['MINI'][i]
-            small_dict[parameters['params'][i]] = parameters['SMALL'][i]
-            medium_dict[parameters['params'][i]] = parameters['MEDIUM'][i]
-            large_dict[parameters['params'][i]] = parameters['LARGE'][i]
-            extra_large_dict[parameters['params'][i]] = parameters['EXTRALARGE'][i]
-
-        self.DataSets = {
-            DatasetSize.MINI: mini_dict,
-            DatasetSize.SMALL: small_dict,
-            DatasetSize.MEDIUM: medium_dict,
-            DatasetSize.LARGE: large_dict,
-            DatasetSize.EXTRA_LARGE: extra_large_dict
-        }
 
 
 class PolyBench:
@@ -108,6 +61,9 @@ class PolyBench:
     POLYBENCH_GFLOPS = False
     POLYBENCH_PAPI_VERBOSE = False
 
+    # Custom PolyBench/Python options
+    POLYBENCH_FLATTEN_LISTS = False
+
     # Timing counters
     __polybench_program_total_flops = 0
     __polybench_timer_start = 0
@@ -118,7 +74,7 @@ class PolyBench:
     __papi_counters = []
     __papi_counters_result = []
 
-    DATASET_SIZE = DatasetSize.LARGE  # The default dataset size for selecting bounds
+    DATASET_SIZE = DataSetSize.LARGE  # The default dataset size for selecting bounds
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
@@ -160,6 +116,7 @@ class PolyBench:
             if options[polybench_options.POLYBENCH_DATASET_SIZE] is not None:
                 self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
 
+            # PolyBench/Python options
             self.ARRAY_IMPLEMENTATION = commandline_options['array_implementation']
 
             # Define in-line C functions for interpreters different than CPython
@@ -195,7 +152,33 @@ class PolyBench:
         else:
             raise RuntimeError('Abstract classes cannot be instantiated.')
 
-    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
+    def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
+        """Auxiliary recursive method for creating a new array based upon Python lists.
+
+        This method assumes that the parameters were previously validated (in the create_array method).
+
+        :param int dimensions: the number of dimensions to create. One dimension creates a list, two a matrix and so on.
+        :param list[int] sizes: a list of integers, each one representing the size of a dimension. The first element of
+            the list represents the size of the first dimension, the second element the size of the second dimension and
+            so on. If this list is smaller than the actual number of dimensions then the last size read is used for the
+            remaining dimensions.
+        :param int initialization_value: (optional; default = 0) the value to use for initializing the arrays during
+            their creation.
+        :return: a list representing an array of N dimensions.
+        :rtype list:
+        """
+        if dimensions == 1:
+            # Just create a list with as many zeros as specified in sizes[0]
+            return [initialization_value for x in range(sizes[0])]
+
+        if len(sizes) == 1:
+            # Generate lists of the same size per dimension
+            return [self.__create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
+        else:
+            # Generate lists with unique sizes per dimension
+            return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
+
+    def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0):
         """
         Create a new array with a specified size.
 
@@ -206,8 +189,7 @@ class PolyBench:
             The size of the first dimension is specified by the first element on the list, the size of the second
             dimension is represented by the second element of the list and so on.
         :param int initialization_value: (optional; default = 0) the value at which all array elements are set.
-        :return: a list representing an array of M dimensions.
-        :rtype list:
+        :return: either a list representing an array of M dimensions or a NumPy array.
         """
         # Sanity check: "dimensions" must be of type integer.
         if not isinstance(dimensions, int):
@@ -254,21 +236,24 @@ class PolyBench:
         # Add post-padding to every array dimension
         new_sizes = [size + self.POLYBENCH_PADDING_FACTOR for size in sizes]
 
-        # For multidimensional arrays, expand the new_sizes list to match the number of dimensions
+        # Expand the new_sizes list to match the number of dimensions
         while len(new_sizes) < dimensions:
             new_sizes.append(sizes[-1])
 
         # At this point it is safe to say that both dimensions and sizes are valid.
         # Use the appropriate "array" implementation.
-        if self.ARRAY_IMPLEMENTATION == 0:
-            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.LIST,
-                                                                           new_sizes, self.DATA_TYPE)
-        elif self.ARRAY_IMPLEMENTATION == 1:
-            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.LIST_FLAT,
-                                                                           new_sizes, self.DATA_TYPE)
-        elif self.ARRAY_IMPLEMENTATION == 2:
-            return MultidimensionalArrayFactory.get_multidimensional_array(MultidimensionalArrayImplementation.NUMPY,
-                                                                           new_sizes, self.DATA_TYPE)
+        if self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
+            return self.__create_array_rec(dimensions, new_sizes, initialization_value)
+        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
+            # A flattened list only has one dimension, which value is the product of all dimensions.
+            dimension_size = 1
+            for dim_size in new_sizes:
+                dimension_size *= dim_size
+            return self.__create_array_rec(1, [dimension_size], initialization_value)
+        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.NUMPY:
+            # Create an auxiliary list for creating an initialized NumPy array.
+            list_array = self.__create_array_rec(dimensions, new_sizes, initialization_value)
+            return numpy.array(list_array, self.DATA_TYPE)
         else:
             raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 

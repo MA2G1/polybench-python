@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Seidel_2d(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _Seidel_2dList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _Seidel_2dListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _Seidel_2dNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,28 +51,6 @@ class Seidel_2d(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.TSTEPS = params.get('TSTEPS')
         self.N = params.get('N')
-
-    def initialize_array(self, A: list):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                A[i, j] = (self.DATA_TYPE(i)*(j+2) + 2) / self.N
-
-    def print_array_custom(self, A: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(A[i, j])
-
-    def kernel(self, A: list):
-# scop begin
-        for t in range(0, self.TSTEPS - 1):
-            for i in range(1, self.N - 2 + 1):
-                for j in range(1, self.N - 2 + 1):
-                    A[i, j] = (A[i - 1, j - 1] + A[i - 1, j] + A[i - 1, j + 1]
-                               + A[i, j - 1] + A[i, j] + A[i, j + 1]
-                               + A[i + 1, j - 1] + A[i + 1, j] + A[i + 1, j + 1]) / 9.0
-#scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -90,3 +80,96 @@ class Seidel_2d(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('A', A)]
+
+
+class _Seidel_2dList(Seidel_2d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Seidel_2dList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                A[i][j] = (self.DATA_TYPE(i) * (j + 2) + 2) / self.N
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(A[i][j])
+
+    def kernel(self, A: list):
+# scop begin
+        for t in range(0, self.TSTEPS - 1):
+            for i in range(1, self.N - 2 + 1):
+                for j in range(1, self.N - 2 + 1):
+                    A[i][j] = (A[i - 1][j - 1] + A[i - 1][j] + A[i - 1][j + 1]
+                               + A[i][j - 1] + A[i][j] + A[i][j + 1]
+                               + A[i + 1][j - 1] + A[i + 1][j] + A[i + 1][j + 1]) / 9.0
+#scop end
+
+
+class _Seidel_2dListFlattened(Seidel_2d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Seidel_2dListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                A[self.N * i + j] = (self.DATA_TYPE(i)*(j+2) + 2) / self.N
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(A[self.N * i + j])
+
+    def kernel(self, A: list):
+# scop begin
+        for t in range(0, self.TSTEPS - 1):
+            for i in range(1, self.N - 2 + 1):
+                for j in range(1, self.N - 2 + 1):
+                    A[self.N * i + j] = (A[self.N * (i - 1) + j - 1] + A[self.N * (i - 1) + j] + A[self.N * (i - 1) + j + 1]
+                                         + A[self.N * i + j - 1] + A[self.N * i + j] + A[self.N * i + j + 1]
+                                         + A[self.N * (i + 1) + j - 1] + A[self.N * (i + 1) + j] + A[self.N * (i + 1) + j + 1]) / 9.0
+# scop end
+
+
+class _Seidel_2dNumPy(Seidel_2d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Seidel_2dNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                A[i, j] = (self.DATA_TYPE(i)*(j+2) + 2) / self.N
+
+    def print_array_custom(self, A: ndarray, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(A[i, j])
+
+    def kernel(self, A: ndarray):
+# scop begin
+        for t in range(0, self.TSTEPS - 1):
+            for i in range(1, self.N - 2 + 1):
+                for j in range(1, self.N - 2 + 1):
+                    A[i, j] = (A[i - 1, j - 1] + A[i - 1, j] + A[i - 1, j + 1]
+                               + A[i, j - 1] + A[i, j] + A[i, j + 1]
+                               + A[i + 1, j - 1] + A[i + 1, j] + A[i + 1, j + 1]) / 9.0
+#scop end

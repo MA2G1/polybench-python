@@ -15,10 +15,21 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench import PolyBenchParameters
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Covariance(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _CovarianceList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _CovarianceListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _CovarianceNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,39 +51,6 @@ class Covariance(PolyBench):
         # Set up problem size
         self.M = params.get('M')
         self.N = params.get('N')
-
-    def initialize_array(self, data: list):
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                data[i, j] = self.DATA_TYPE(i * j) / self.M
-
-    def print_array_custom(self, cov: list, name: str):
-        for i in range(0, self.M):
-            for j in range(0, self.M):
-                if (i * self.M + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(cov[i, j])
-
-    def kernel(self, float_n: float, data: list, cov: list, mean: list):
-# scop begin
-        for j in range(0, self.M):
-            mean[j] = 0.0
-            for i in range(0, self.N):
-                mean[j] += data[i, j]
-            mean[j] /= float_n
-
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                data[i, j] -= mean[j]
-
-        for i in range(0, self.M):
-            for j in range(0, self.M):
-                cov[i, j] = 0.0
-                for k in range(0, self.N):
-                    cov[i, j] += data[k, i] * data[k, j]
-                cov[i, j] /= float_n - 1.0
-                cov[j, i] = cov[i, j]
-# scop end
 
     def run_benchmark(self):
         # Array creation
@@ -96,3 +74,128 @@ class Covariance(PolyBench):
 
         # Return printable data as a list of tuples ('name', value)
         return [('cov', cov)]
+
+class _CovarianceList(Covariance):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, data: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i][j] = self.DATA_TYPE(i * j) / self.M
+
+    def print_array_custom(self, cov: list, name: str):
+            for i in range(0, self.M):
+                for j in range(0, self.M):
+                    if (i * self.M + j) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(cov[i][j])
+
+    def kernel(self, float_n: float, data: list, cov: list, mean: list):
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[i][j]
+            mean[j] /= float_n
+
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i][j] -= mean[j]
+
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                cov[i][j] = 0.0
+                for k in range(0, self.N):
+                    cov[i][j] += data[k][i] * data[k][j]
+                cov[i][j] /= float_n - 1.0
+                cov[j][i] = cov[i][j]
+# scop end
+
+
+class _CovarianceListFlattened(Covariance):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, data: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[self.M * i + j] = self.DATA_TYPE(i * j) / self.M
+
+    def print_array_custom(self, cov: list, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(cov[self.M * i + j])
+
+    def kernel(self, float_n: float, data: list, cov: list, mean: list):
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[self.M * i + j]
+            mean[j] /= float_n
+
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[self.M * i + j] -= mean[j]
+
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                cov[self.M * i + j] = 0.0
+                for k in range(0, self.N):
+                    cov[self.M * i + j] += data[self.M * k + i] * data[self.M * k + j]
+                cov[self.M * i + j] /= float_n - 1.0
+                cov[self.M * j + i] = cov[self.M * i + j]
+# scop end
+
+
+class _CovarianceNumPy(Covariance):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_CovarianceNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, data: ndarray):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i, j] = self.DATA_TYPE(i * j) / self.M
+
+    def print_array_custom(self, cov: ndarray, name: str):
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(cov[i, j])
+
+    def kernel(self, float_n: float, data: ndarray, cov: ndarray, mean: ndarray):
+# scop begin
+        for j in range(0, self.M):
+            mean[j] = 0.0
+            for i in range(0, self.N):
+                mean[j] += data[i, j]
+            mean[j] /= float_n
+
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                data[i, j] -= mean[j]
+
+        for i in range(0, self.M):
+            for j in range(0, self.M):
+                cov[i, j] = 0.0
+                for k in range(0, self.N):
+                    cov[i, j] += data[k, i] * data[k, j]
+                cov[i, j] /= float_n - 1.0
+                cov[j, i] = cov[i, j]
+# scop end

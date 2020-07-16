@@ -14,11 +14,23 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 import math
 
 
 class Gramschmidt(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _GramschmidtList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _GramschmidtListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _GramschmidtNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -40,48 +52,6 @@ class Gramschmidt(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.M = params.get('M')
         self.N = params.get('N')
-
-    def initialize_array(self, A: list, R: list, Q: list):
-        for i in range(0, self.M):
-            for j in range(0, self.N):
-                A[i, j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
-                Q[i, j] = 0.0
-
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                R[i, j] = 0.0
-
-    def print_array_custom(self, array: list, name: str):
-        if name == 'R':
-            loop_bound = self.N
-        else:
-            loop_bound = self.M
-
-        for i in range(0, loop_bound):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(array[i, j])
-
-    def kernel(self, A: list, R: list, Q: list):
-# scop begin
-        for k in range(0, self.N):
-            nrm = 0.0
-            for i in range(0, self.M):
-                nrm += A[i, k] * A[i, k]
-            R[k, k] = math.sqrt(nrm)
-
-            for i in range(0, self.M):
-                Q[i, k] = A[i, k] / R[k, k]
-
-            for j in range(k + 1, self.N):
-                R[k, j] = 0.0
-                for i in range(0, self.M):
-                    R[k, j] += Q[i, k] * A[i, j]
-
-                for i in range(0, self.M):
-                    A[i, j] = A[i, j] - Q[i, k] * R[k, j]
-# scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -113,3 +83,156 @@ class Gramschmidt(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('R', R), ('Q', Q)]
+
+
+class _GramschmidtList(Gramschmidt):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GramschmidtList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, R: list, Q: list):
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[i][j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                Q[i][j] = 0.0
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                R[i][j] = 0.0
+
+    def print_array_custom(self, array: list, name: str):
+        if name == 'R':
+            loop_bound = self.N
+        else:
+            loop_bound = self.M
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i][j])
+
+    def kernel(self, A: list, R: list, Q: list):
+# scop begin
+        for k in range(0, self.N):
+            nrm = 0.0
+            for i in range(0, self.M):
+                nrm += A[i][k] * A[i][k]
+            R[k][k] = math.sqrt(nrm)
+
+            for i in range(0, self.M):
+                Q[i][k] = A[i][k] / R[k][k]
+
+            for j in range(k + 1, self.N):
+                R[k][j] = 0.0
+                for i in range(0, self.M):
+                    R[k][j] += Q[i][k] * A[i][j]
+
+                for i in range(0, self.M):
+                    A[i][j] = A[i][j] - Q[i][k] * R[k][j]
+# scop end
+
+
+class _GramschmidtListFlattened(Gramschmidt):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GramschmidtListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, R: list, Q: list):
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[self.N * i + j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                Q[self.N * i + j] = 0.0
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                R[self.N * i + j] = 0.0
+
+    def print_array_custom(self, array: list, name: str):
+        if name == 'R':
+            loop_bound = self.N
+        else:
+            loop_bound = self.M
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[self.N * i + j])
+
+    def kernel(self, A: list, R: list, Q: list):
+# scop begin
+        for k in range(0, self.N):
+            nrm = 0.0
+            for i in range(0, self.M):
+                nrm += A[self.N * i + k] * A[self.N * i + k]
+            R[self.N * k + k] = math.sqrt(nrm)
+
+            for i in range(0, self.M):
+                Q[self.N * i + k] = A[self.N * i + k] / R[self.N * k + k]
+
+            for j in range(k + 1, self.N):
+                R[self.N * k + j] = 0.0
+                for i in range(0, self.M):
+                    R[self.N * k + j] += Q[self.N * i + k] * A[self.N * i + j]
+
+                for i in range(0, self.M):
+                    A[self.N * i + j] = A[self.N * i + j] - Q[self.N * i + k] * R[self.N * k + j]
+# scop end
+
+
+class _GramschmidtNumPy(Gramschmidt):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_GramschmidtNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, R: ndarray, Q: ndarray):
+        for i in range(0, self.M):
+            for j in range(0, self.N):
+                A[i, j] = ((self.DATA_TYPE((i * j) % self.M) / self.M) * 100) + 10
+                Q[i, j] = 0.0
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                R[i, j] = 0.0
+
+    def print_array_custom(self, array: ndarray, name: str):
+        if name == 'R':
+            loop_bound = self.N
+        else:
+            loop_bound = self.M
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i, j])
+
+    def kernel(self, A: ndarray, R: ndarray, Q: ndarray):
+# scop begin
+        for k in range(0, self.N):
+            nrm = 0.0
+            for i in range(0, self.M):
+                nrm += A[i, k] * A[i, k]
+            R[k, k] = math.sqrt(nrm)
+
+            for i in range(0, self.M):
+                Q[i, k] = A[i, k] / R[k, k]
+
+            for j in range(k + 1, self.N):
+                R[k, j] = 0.0
+                for i in range(0, self.M):
+                    R[k, j] += Q[i, k] * A[i, j]
+
+                for i in range(0, self.M):
+                    A[i, j] = A[i, j] - Q[i, k] * R[k, j]
+# scop end

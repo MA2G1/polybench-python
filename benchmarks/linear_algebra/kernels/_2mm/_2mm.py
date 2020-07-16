@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class _2mm(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _2mmList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _2mmListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _2mmNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,46 +53,6 @@ class _2mm(PolyBench):
         self.NJ = params.get('NJ')
         self.NK = params.get('NK')
         self.NL = params.get('NL')
-
-    def initialize_array(self, A: list, B: list, C: list, D: list):
-        for i in range(0, self.NI):
-            for j in range(0, self.NK):
-                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
-
-        for i in range(0, self.NK):
-            for j in range(0, self.NJ):
-                B[i, j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
-
-        for i in range(0, self.NJ):
-            for j in range(0, self.NL):
-                C[i, j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
-
-        for i in range(0, self.NI):
-            for j in range(0, self.NL):
-                D[i, j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
-
-    def print_array_custom(self, D: list, name: str):
-        for i in range(0, self.NI):
-            for j in range(0, self.NL):
-                if (i * self.NI + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(D[i, j])
-
-    def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
-# scop begin
-        # D := alpha * A * B * C + beta * D
-        for i in range(self.NI):
-            for j in range(self.NJ):
-                tmp[i, j] = 0.0
-                for k in range(0, self.NK):
-                    tmp[i, j] += alpha * A[i, k] * B[k, j]
-
-        for i in range(0, self.NI):
-            for j in range(0, self.NL):
-                D[i, j] *= beta
-                for k in range(0, self.NJ):
-                    D[i, j] += tmp[i, k] * C[k, j]
-# scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -117,3 +89,150 @@ class _2mm(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('D', D)]
+
+
+class _2mmList(_2mm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_2mmList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list, C: list, D: list):
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[i][j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i][j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                C[i][j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[i][j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+
+    def print_array_custom(self, D: list, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(D[i][j])
+
+    def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
+# scop begin
+        # D := alpha * A * B * C + beta * D
+        for i in range(self.NI):
+            for j in range(self.NJ):
+                tmp[i][j] = 0.0
+                for k in range(0, self.NK):
+                    tmp[i][j] += alpha * A[i][k] * B[k][j]
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[i][j] *= beta
+                for k in range(0, self.NJ):
+                    D[i][j] += tmp[i][k] * C[k][j]
+# scop end
+
+
+class _2mmListFlattened(_2mm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_2mmListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list, C: list, D: list):
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[self.NK * i + j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[self.NJ * i + j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                C[self.NL * i + j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[self.NL * i + j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+
+    def print_array_custom(self, D: list, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(D[self.NL * i + j])
+
+    def kernel(self, alpha, beta, tmp: list, A: list, B: list, C: list, D: list):
+# scop begin
+        # D := alpha * A * B * C + beta * D
+        for i in range(self.NI):
+            for j in range(self.NJ):
+                tmp[self.NJ * i + j] = 0.0
+                for k in range(0, self.NK):
+                    tmp[self.NJ * i + j] += alpha * A[self.NK * i + k] * B[self.NJ * k + j]
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[self.NL * i + j] *= beta
+                for k in range(0, self.NJ):
+                    D[self.NL * i + j] += tmp[self.NJ * i + k] * C[self.NL * k + j]
+# scop end
+
+
+class _2mmNumPy(_2mm):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_2mmNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, B: ndarray, C: ndarray, D: ndarray):
+        for i in range(0, self.NI):
+            for j in range(0, self.NK):
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.NI) / self.NI
+
+        for i in range(0, self.NK):
+            for j in range(0, self.NJ):
+                B[i, j] = self.DATA_TYPE(i * (j + 1) % self.NJ) / self.NJ
+
+        for i in range(0, self.NJ):
+            for j in range(0, self.NL):
+                C[i, j] = self.DATA_TYPE((i * (j + 3) + 1) % self.NL) / self.NL
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[i, j] = self.DATA_TYPE(i * (j + 2) % self.NK) / self.NK
+
+    def print_array_custom(self, D: ndarray, name: str):
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                if (i * self.NI + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(D[i, j])
+
+    def kernel(self, alpha, beta, tmp: ndarray, A: ndarray, B: ndarray, C: ndarray, D: ndarray):
+# scop begin
+        # D := alpha * A * B * C + beta * D
+        for i in range(self.NI):
+            for j in range(self.NJ):
+                tmp[i, j] = 0.0
+                for k in range(0, self.NK):
+                    tmp[i, j] += alpha * A[i, k] * B[k, j]
+
+        for i in range(0, self.NI):
+            for j in range(0, self.NL):
+                D[i, j] *= beta
+                for k in range(0, self.NJ):
+                    D[i, j] += tmp[i, k] * C[k, j]
+# scop end

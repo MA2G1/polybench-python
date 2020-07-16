@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Syrk(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _SyrkList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _SyrkListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _SyrkNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,39 +51,6 @@ class Syrk(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.M = params.get('M')
         self.N = params.get('N')
-
-    def initialize_array(self, C: list, A: list):
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                A[i, j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
-
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                C[i, j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
-
-    def print_array_custom(self, C: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                if (i * self.N + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(C[i, j])
-
-    def kernel(self, alpha, beta, C: list, A: list):
-        # BLAS PARAMS
-        # TRANS = 'N'
-        # UPLO  = 'L'
-        #  =>  Form  C := alpha*A*A**T + beta*C.
-        # A is NxM
-        # C is NxN
-# scop begin
-        for i in range(0, self.N):
-            for j in range(0, i + 1):
-                C[i, j] *= beta
-
-            for k in range(0, self.M):
-                for j in range(0, i + 1):
-                    C[i, j] += alpha * A[i, k] * A[j, k]
-# scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -105,3 +84,123 @@ class Syrk(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('C', C)]
+
+
+class _SyrkList(Syrk):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_SyrkList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: list, A: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                A[i][j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                C[i][j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
+
+    def print_array_custom(self, C: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[i][j])
+
+    def kernel(self, alpha, beta, C: list, A: list):
+        # BLAS PARAMS
+        # TRANS = 'N'
+        # UPLO  = 'L'
+        #  =>  Form  C := alpha*A*A**T + beta*C.
+        # A is NxM
+        # C is NxN
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, i + 1):
+                C[i][j] *= beta
+
+            for k in range(0, self.M):
+                for j in range(0, i + 1):
+                    C[i][j] += alpha * A[i][k] * A[j][k]
+# scop end
+
+
+class _SyrkListFlattened(Syrk):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_SyrkListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: list, A: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                A[self.M * i + j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                C[self.N * i + j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
+
+    def print_array_custom(self, C: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[self.N * i + j])
+
+    def kernel(self, alpha, beta, C: list, A: list):
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, i + 1):
+                C[self.N * i + j] *= beta
+
+            for k in range(0, self.M):
+                for j in range(0, i + 1):
+                    C[self.N * i + j] += alpha * A[self.M * i + k] * A[self.M * j + k]
+# scop end
+
+
+class _SyrkNumPy(Syrk):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_SyrkNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, C: ndarray, A: ndarray):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                A[i, j] = self.DATA_TYPE((i * j + 1) % self.N) / self.N
+
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                C[i, j] = self.DATA_TYPE((i * j + 2) % self.M) / self.M
+
+    def print_array_custom(self, C: ndarray, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                if (i * self.N + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(C[i, j])
+
+    def kernel(self, alpha, beta, C: ndarray, A: ndarray):
+        # BLAS PARAMS
+        # TRANS = 'N'
+        # UPLO  = 'L'
+        #  =>  Form  C := alpha*A*A**T + beta*C.
+        # A is NxM
+        # C is NxN
+# scop begin
+        for i in range(0, self.N):
+            for j in range(0, i + 1):
+                C[i, j] *= beta
+
+            for k in range(0, self.M):
+                for j in range(0, i + 1):
+                    C[i, j] += alpha * A[i, k] * A[j, k]
+# scop end

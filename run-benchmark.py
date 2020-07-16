@@ -24,8 +24,8 @@ the different kernels."""
 from platform import python_implementation
 
 from benchmarks import benchmark_classes
-from benchmarks.polybench import PolyBench, PolyBenchParameters
-from benchmarks.polybench import DatasetSize
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import DataSetSize, ArrayImplementation
 import benchmarks.polybench_options as polybench_options
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
@@ -120,7 +120,7 @@ if __name__ == '__main__':
                 'path': '',        # The path to PolyBench/C
                 'full_path': ''
             },
-            'array_implementation': 0,
+            'array_implementation': ArrayImplementation.LIST,
         }
 
         # Blindly replace the directory separator character with a commonly supported forward slash.
@@ -231,10 +231,10 @@ if __name__ == '__main__':
         # Append the dataset size if required
         if not (args.dataset_size is None):
             # Try to set the enumeration value from user input. On error, an exception is raised.
-            if args.dataset_size not in [DatasetSize.MINI.name, DatasetSize.SMALL.name, DatasetSize.MEDIUM.name,
-                                         DatasetSize.LARGE.name, DatasetSize.EXTRA_LARGE.name]:
+            if args.dataset_size not in [DataSetSize.MINI.name, DataSetSize.SMALL.name, DataSetSize.MEDIUM.name,
+                                         DataSetSize.LARGE.name, DataSetSize.EXTRA_LARGE.name]:
                 raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
-            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DatasetSize[args.dataset_size]
+            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DataSetSize[args.dataset_size]
 
         # Process time_benchmark, it is either False or True
         # This sets the number of times a benchmarks is run. 5 when averaging, 1 when not.
@@ -245,7 +245,13 @@ if __name__ == '__main__':
             n = int(args.array_implementation)
             if n < 0 or n > 2:
                 n = 0  # default
-            result['array_implementation'] = n
+
+            if n == 0:
+                result['array_implementation'] = ArrayImplementation.LIST
+            elif n == 1:
+                result['array_implementation'] = ArrayImplementation.LIST_FLATTENED
+            elif n == 2:
+                result['array_implementation'] = ArrayImplementation.NUMPY
         else:
             raise AssertionError('Argument "array-implementation" must be a number.')
 
@@ -352,9 +358,9 @@ if __name__ == '__main__':
             output_str += '_papi'
 
         # Append array type implementation
-        if options['array_implementation'] == 0:
+        if options['array_implementation'] == ArrayImplementation.LIST:
             output_str += '_array=list'
-        elif options['array_implementation'] == 1:
+        elif options['array_implementation'] == ArrayImplementation.LIST_FLATTENED:
             output_str += '_array=flattenedlist'
         else:
             output_str += '_array=numpy'

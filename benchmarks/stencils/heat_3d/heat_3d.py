@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Heat_3d(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _Heat_3dList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _Heat_3dListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _Heat_3dNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,40 +51,6 @@ class Heat_3d(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.TSTEPS = params.get('TSTEPS')
         self.N = params.get('N')
-
-    def initialize_array(self, A: list, B: list):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                for k in range(0, self.N):
-                    A[i, j, k] = B[i, j, k] = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
-
-    def print_array_custom(self, A: list, name: str):
-        for i in range(0, self.N):
-            for j in range(0, self.N):
-                for k in range(0, self.N):
-                    if (i * self.N * self.N + j * self.N + k) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(A[i, j, k])
-
-    def kernel(self, A: list, B: list):
-# scop begin
-        for t in range(1, self.TSTEPS + 1):
-            for i in range(1, self.N - 1):
-                for j in range(1, self.N - 1):
-                    for k in range(1, self.N - 1):
-                        B[i, j, k] = (0.125 * (A[i+1, j, k] - 2.0 * A[i, j, k] + A[i-1, j, k])
-                                    + 0.125 * (A[i, j+1, k] - 2.0 * A[i, j, k] + A[i, j-1, k])
-                                    + 0.125 * (A[i, j, k+1] - 2.0 * A[i, j, k] + A[i, j, k-1])
-                                    + A[i, j, k])
-
-            for i in range(1, self.N - 1):
-                for j in range(1, self.N - 1):
-                    for k in range(1, self.N - 1):
-                        A[i, j, k] = (0.125 * (B[i+1, j, k] - 2.0 * B[i, j, k] + B[i-1, j, k])
-                                    + 0.125 * (B[i, j+1, k] - 2.0 * B[i, j, k] + B[i, j-1, k])
-                                    + 0.125 * (B[i, j, k+1] - 2.0 * B[i, j, k] + B[i, j, k-1])
-                                    + B[i, j, k])
-# scop end
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -103,3 +81,149 @@ class Heat_3d(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('A', A)]
+
+
+class _Heat_3dList(Heat_3d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Heat_3dList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    A[i][j][k] = B[i][j][k] = self.DATA_TYPE(i + j + (self.N - k)) * 10 / self.N
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    if (i * self.N * self.N + j * self.N + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i][j][k])
+
+    def kernel(self, A: list, B: list):
+# scop begin
+        for t in range(1, self.TSTEPS + 1):
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        B[i][j][k] = (0.125 * (A[i+1][j][k] - 2.0 * A[i][j][k] + A[i-1][j][k])
+                                    + 0.125 * (A[i][j+1][k] - 2.0 * A[i][j][k] + A[i][j-1][k])
+                                    + 0.125 * (A[i][j][k+1] - 2.0 * A[i][j][k] + A[i][j][k-1])
+                                    + A[i][j][k])
+
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        A[i][j][k] = (0.125 * (B[i+1][j][k] - 2.0 * B[i][j][k] + B[i-1][j][k])
+                                    + 0.125 * (B[i][j+1][k] - 2.0 * B[i][j][k] + B[i][j-1][k])
+                                    + 0.125 * (B[i][j][k+1] - 2.0 * B[i][j][k] + B[i][j][k-1])
+                                    + B[i][j][k])
+# scop end
+
+
+class _Heat_3dListFlattened(Heat_3d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Heat_3dListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, B: list):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    A[(self.N * i + j) * self.N + k] = B[(self.N * i + j) * self.N + k]\
+                        = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    if (i * self.N * self.N + j * self.N + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[(self.N * i + j) * self.N + k])
+
+    def kernel(self, A: list, B: list):
+# scop begin
+        for t in range(1, self.TSTEPS + 1):
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        B[(self.N * i + j) * self.N + k] = (
+                                0.125 * (A[(self.N * (i + 1) + j) * self.N + k]
+                                         - 2.0 * A[(self.N * i + j) * self.N + k]
+                                         + A[(self.N * (i - 1) + j) * self.N + k])
+                                + 0.125 * (A[(self.N * i + (j + 1)) * self.N + k]
+                                           - 2.0 * A[(self.N * i + j) * self.N + k]
+                                           + A[(self.N * i + (j - 1)) * self.N + k])
+                                + 0.125 * (A[(self.N * i + j) * self.N + (k + 1)]
+                                           - 2.0 * A[(self.N * i + j) * self.N + k]
+                                           + A[(self.N * i + j) * self.N + (k - 1)])
+                                + A[(self.N * i + j) * self.N + k]
+                        )
+
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        A[(self.N * i + j) * self.N + k] = (
+                                0.125 * (B[(self.N * (i + 1) + j) * self.N + k]
+                                         - 2.0 * B[(self.N * i + j) * self.N + k]
+                                         + B[(self.N * (i - 1) + j) * self.N + k])
+                                + 0.125 * (B[(self.N * i + (j + 1)) * self.N + k]
+                                           - 2.0 * B[(self.N * i + j) * self.N + k]
+                                           + B[(self.N * i + (j - 1)) * self.N + k])
+                                + 0.125 * (B[(self.N * i + j) * self.N + (k + 1)]
+                                           - 2.0 * B[(self.N * i + j) * self.N + k]
+                                           + B[(self.N * i + j) * self.N + (k - 1)])
+                                + B[(self.N * i + j) * self.N + k]
+                        )
+# scop end
+
+
+class _Heat_3dNumPy(Heat_3d):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_Heat_3dNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, B: ndarray):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    A[i, j, k] = B[i, j, k] = self.DATA_TYPE(i + j + (self.N-k)) * 10 / self.N
+
+    def print_array_custom(self, A: ndarray, name: str):
+        for i in range(0, self.N):
+            for j in range(0, self.N):
+                for k in range(0, self.N):
+                    if (i * self.N * self.N + j * self.N + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i, j, k])
+
+    def kernel(self, A: ndarray, B: ndarray):
+# scop begin
+        for t in range(1, self.TSTEPS + 1):
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        B[i, j, k] = (0.125 * (A[i+1, j, k] - 2.0 * A[i, j, k] + A[i-1, j, k])
+                                    + 0.125 * (A[i, j+1, k] - 2.0 * A[i, j, k] + A[i, j-1, k])
+                                    + 0.125 * (A[i, j, k+1] - 2.0 * A[i, j, k] + A[i, j, k-1])
+                                    + A[i, j, k])
+
+            for i in range(1, self.N - 1):
+                for j in range(1, self.N - 1):
+                    for k in range(1, self.N - 1):
+                        A[i, j, k] = (0.125 * (B[i+1, j, k] - 2.0 * B[i, j, k] + B[i-1, j, k])
+                                    + 0.125 * (B[i, j+1, k] - 2.0 * B[i, j, k] + B[i, j-1, k])
+                                    + 0.125 * (B[i, j, k+1] - 2.0 * B[i, j, k] + B[i, j, k-1])
+                                    + B[i, j, k])
+# scop end

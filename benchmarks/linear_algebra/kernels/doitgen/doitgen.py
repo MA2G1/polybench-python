@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class Doitgen(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _DoitgenList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _DoitgenListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _DoitgenNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -41,42 +53,11 @@ class Doitgen(PolyBench):
         self.NR = params.get('NR')
         self.NP = params.get('NP')
 
-    def initialize_array(self, A: list, C4: list):
-        for i in range(0, self.NR):
-            for j in range(0, self.NQ):
-                for k in range(0, self.NP):
-                    A[i, j, k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
-
-        for i in range(0, self.NP):
-            for j in range(0, self.NP):
-                C4[i, j] = self.DATA_TYPE(i * j % self.NP) / self.NP
-
-    def print_array_custom(self, A: list, name: str):
-        for i in range(0, self.NR):
-            for j in range(0, self.NQ):
-                for k in range(0, self.NP):
-                    if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
-                        self.print_message('\n')
-                    self.print_value(A[i, j, k])
-
-    def kernel(self, A: list, C4: list, sum: list):
-# scop begin
-        for r in range(0, self.NR):
-            for q in range(self.NQ):
-                for p in range(0, self.NP):
-                    sum[p] = 0.0
-                    for s in range(self.NP):
-                        sum[p] += A[r, q, s] * C4[s, p]
-
-                for p in range(0, self.NP):
-                    A[r, q, p] = sum[p]
-# scop end
-
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
         A = self.create_array(3, [self.NR, self.NQ, self.NP], self.DATA_TYPE(0))
-        sum = self.create_array(1, [self.NP], self.DATA_TYPE(0))
         C4 = self.create_array(2, [self.NP, self.NP], self.DATA_TYPE(0))
+        sum = self.create_array(1, [self.NP], self.DATA_TYPE(0))
 
         # Initialize data structures
         self.initialize_array(A, C4)
@@ -102,3 +83,123 @@ class Doitgen(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('A', A)]
+
+
+class _DoitgenList(Doitgen):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DoitgenList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, C4: list):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    A[i][j][k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
+
+        for i in range(0, self.NP):
+            for j in range(0, self.NP):
+                C4[i][j] = self.DATA_TYPE(i * j % self.NP) / self.NP
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i][j][k])
+
+    def kernel(self, A: list, C4: list, sum: list):
+# scop begin
+        for r in range(0, self.NR):
+            for q in range(self.NQ):
+                for p in range(0, self.NP):
+                    sum[p] = 0.0
+                    for s in range(self.NP):
+                        sum[p] += A[r][q][s] * C4[s][p]
+
+                for p in range(0, self.NP):
+                    A[r][q][p] = sum[p]
+# scop end
+
+
+class _DoitgenListFlattened(Doitgen):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DoitgenListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: list, C4: list):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    A[(self.NQ * i + j) * self.NP + k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
+
+        for i in range(0, self.NP):
+            for j in range(0, self.NP):
+                C4[self.NP * i + j] = self.DATA_TYPE(i * j % self.NP) / self.NP
+
+    def print_array_custom(self, A: list, name: str):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[(self.NQ * i + j) * self.NP + k])
+
+    def kernel(self, A: list, C4: list, sum: list):
+# scop begin
+        for r in range(0, self.NR):
+            for q in range(self.NQ):
+                for p in range(0, self.NP):
+                    sum[p] = 0.0
+                    for s in range(self.NP):
+                        sum[p] += A[(self.NQ * r + q) * self.NP + s] * C4[self.NP * s + p]
+
+                for p in range(0, self.NP):
+                    A[(self.NQ * r + q) * self.NP + p] = sum[p]
+# scop end
+
+
+class _DoitgenNumPy(Doitgen):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_DoitgenNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, A: ndarray, C4: ndarray):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    A[i, j, k] = self.DATA_TYPE((i * j + k) % self.NP) / self.NP
+
+        for i in range(0, self.NP):
+            for j in range(0, self.NP):
+                C4[i, j] = self.DATA_TYPE(i * j % self.NP) / self.NP
+
+    def print_array_custom(self, A: ndarray, name: str):
+        for i in range(0, self.NR):
+            for j in range(0, self.NQ):
+                for k in range(0, self.NP):
+                    if (i * self.NQ * self.NP + j * self.NP + k) % 20 == 0:
+                        self.print_message('\n')
+                    self.print_value(A[i, j, k])
+
+    def kernel(self, A: ndarray, C4: ndarray, sum: ndarray):
+# scop begin
+        for r in range(0, self.NR):
+            for q in range(self.NQ):
+                for p in range(0, self.NP):
+                    sum[p] = 0.0
+                    for s in range(self.NP):
+                        sum[p] += A[r, q, s] * C4[s, p]
+
+                for p in range(0, self.NP):
+                    A[r, q, p] = sum[p]
+# scop end

@@ -14,10 +14,22 @@
 
 """<replace_with_module_description>"""
 
-from benchmarks.polybench import PolyBench, PolyBenchParameters
+from benchmarks.polybench import PolyBench
+from benchmarks.polybench_classes import PolyBenchParameters
+from benchmarks.polybench_options import ArrayImplementation
+from numpy.core.multiarray import ndarray
 
 
 class TemplateClass(PolyBench):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        implementation = options['array_implementation']
+        if implementation == ArrayImplementation.LIST:
+            return _TemplateClassList.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.LIST_FLATTENED:
+            return _TemplateClassListFlattened.__new__(cls, options, parameters)
+        elif implementation == ArrayImplementation.NUMPY:
+            return _TemplateClassNumPy.__new__(cls, options, parameters)
 
     def __init__(self, options: dict, parameters: PolyBenchParameters):
         super().__init__(options)
@@ -39,30 +51,6 @@ class TemplateClass(PolyBench):
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.M = params.get('M')
         self.N = params.get('N')
-
-    def initialize_array(self, array: list):
-        for i in range(0, self.N):
-            for j in range(0, self.M):
-                array[i][j] = 42
-
-    def print_array_custom(self, array: list, name: str):
-        if name == 'array1':
-            loop_bound = self.M
-        else:
-            loop_bound = self.N
-
-        for i in range(0, loop_bound):
-            for j in range(0, self.M):
-                if (i * self.M + j) % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(array[i][j])
-
-    def kernel(self, input_data, output_data):
-        """The actual kernel implementation.
-
-        Modify this method's signature according to the kernel's needs.
-        """
-        print(f'NOT IMPLEMENTED: Template kernel for {self.__module__}')
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -93,3 +81,100 @@ class TemplateClass(PolyBench):
         #   - For multiple data structure results:
         #     return [('matrix1', m1), ('matrix2', m2), ... ]
         return [('results', output)]
+
+
+class _TemplateClassList(TemplateClass):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TemplateClassList)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, array: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                array[i][j] = 42
+
+    def print_array_custom(self, array: list, name: str):
+        if name == 'array1':
+            loop_bound = self.M
+        else:
+            loop_bound = self.N
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i][j])
+
+    def kernel(self, input_data: list, output_data: list):
+        """The actual kernel implementation.
+
+        Modify this method's signature according to the kernel's needs.
+        """
+        print(f'NOT IMPLEMENTED: Template kernel for {self.__module__}')
+
+class _TemplateClassListFlattened(TemplateClass):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TemplateClassListFlattened)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, array: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                array[self.M * i + j] = 42
+
+    def print_array_custom(self, array: list, name: str):
+        if name == 'array1':
+            loop_bound = self.M
+        else:
+            loop_bound = self.N
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[self.M * i + j])
+
+    def kernel(self, input_data: list, output_data: list):
+        """The actual kernel implementation.
+
+        Modify this method's signature according to the kernel's needs.
+        """
+        print(f'NOT IMPLEMENTED: Template kernel for {self.__module__}')
+
+class _TemplateClassNumPy(TemplateClass):
+
+    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+        return object.__new__(_TemplateClassNumPy)
+
+    def __init__(self, options: dict, parameters: PolyBenchParameters):
+        super().__init__(options, parameters)
+
+    def initialize_array(self, array: list):
+        for i in range(0, self.N):
+            for j in range(0, self.M):
+                array[i, j] = 42
+
+    def print_array_custom(self, array: list, name: str):
+        if name == 'array1':
+            loop_bound = self.M
+        else:
+            loop_bound = self.N
+
+        for i in range(0, loop_bound):
+            for j in range(0, self.M):
+                if (i * self.M + j) % 20 == 0:
+                    self.print_message('\n')
+                self.print_value(array[i, j])
+
+    def kernel(self, input_data: ndarray, output_data: ndarray):
+        """The actual kernel implementation.
+
+        Modify this method's signature according to the kernel's needs.
+        """
+        print(f'NOT IMPLEMENTED: Template kernel for {self.__module__}')
