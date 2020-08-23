@@ -59,7 +59,7 @@ POLYBENCH_PAPI_VERBOSE = 'POLYBENCH_PAPI_VERBOSE'
 POLYBENCH_DATASET_SIZE = 'POLYBENCH_DATASET_SIZE'
 
 # PolyBench/Python options
-POLYBENCH_FLATTEN_LISTS = 'POLYBENCH_FLATTEN_LISTS'  # Flatten list access. This changes everything on implementation
+POLYBENCH_ARRAY_IMPLEMENTATION = 'POLYBENCH_ARRAY_IMPLEMENTATION'
 
 
 polybench_default_options = {
@@ -80,5 +80,5 @@ polybench_default_options = {
     # Custom options
     POLYBENCH_DATASET_SIZE: DataSetSize.LARGE,  # Should be initialized by PolyBench
     # PolyBench/Python options
-    POLYBENCH_FLATTEN_LISTS: False,
+    POLYBENCH_ARRAY_IMPLEMENTATION: ArrayImplementation.LIST,
 }

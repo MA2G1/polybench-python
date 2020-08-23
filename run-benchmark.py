@@ -54,7 +54,6 @@ if __name__ == '__main__':
         'polybench_options': dict,
         'save_results': bool,
         'verify': dict,
-        'array_implementation': int,
     }:
         """
         Parse command line arguments and generate normalized results.
@@ -96,8 +95,8 @@ if __name__ == '__main__':
                                  'file. Please note that the files containing the results of PolyBench/C must already '
                                  'exist and must be next to where the actual implementation resides. This is the '
                                  'default behavior when PolyBench/C is run from Perl scripts.')
-        parser.add_argument('--time-benchmark', dest='time_benchmark', action='store_true',
-                            help='Performs 5 runs of the benchmark and calculates the mean time.')
+        parser.add_argument('--iterations', dest='iterations', default=1,
+                            help='Performs N runs of the benchmark.')
         parser.add_argument('--array-implementation', dest='array_implementation', default=0,
                             help='Allows to select the internal array implementation in use. 0: Python List; 1: Python '
                                  'List with flattened indexes; 2: NumPy array. Default: 0.')
@@ -120,7 +119,6 @@ if __name__ == '__main__':
                 'path': '',        # The path to PolyBench/C
                 'full_path': ''
             },
-            'array_implementation': ArrayImplementation.LIST,
         }
 
         # Blindly replace the directory separator character with a commonly supported forward slash.
@@ -236,9 +234,11 @@ if __name__ == '__main__':
                 raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
             result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DataSetSize[args.dataset_size]
 
-        # Process time_benchmark, it is either False or True
-        # This sets the number of times a benchmarks is run. 5 when averaging, 1 when not.
-        result['iterations'] = 5 if args.time_benchmark else 1
+        # Process the number of iterations.
+        if not str(args.iterations).isnumeric() or int(args.iterations) < 1:
+            raise RuntimeError(f'Invalid value for parameter --iterations: "{args.iterations}"')
+        else:
+            result['iterations'] = int(args.iterations)
 
         # Process array implementation
         if str(args.array_implementation).isnumeric():
@@ -247,11 +247,11 @@ if __name__ == '__main__':
                 n = 0  # default
 
             if n == 0:
-                result['array_implementation'] = ArrayImplementation.LIST
+                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.LIST
             elif n == 1:
-                result['array_implementation'] = ArrayImplementation.LIST_FLATTENED
+                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.LIST_FLATTENED
             elif n == 2:
-                result['array_implementation'] = ArrayImplementation.NUMPY
+                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.NUMPY
         else:
             raise AssertionError('Argument "array-implementation" must be a number.')
 
@@ -358,9 +358,9 @@ if __name__ == '__main__':
             output_str += '_papi'
 
         # Append array type implementation
-        if options['array_implementation'] == ArrayImplementation.LIST:
+        if options['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] == ArrayImplementation.LIST:
             output_str += '_array=list'
-        elif options['array_implementation'] == ArrayImplementation.LIST_FLATTENED:
+        elif options['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] == ArrayImplementation.LIST_FLATTENED:
             output_str += '_array=flattenedlist'
         else:
             output_str += '_array=numpy'
@@ -393,7 +393,7 @@ if __name__ == '__main__':
                     print(f'    {polybench_options.POLYBENCH_TIME, ooo[polybench_options.POLYBENCH_TIME]}')
                     print(f'    {polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER, ooo[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]}')
                     print(f'    {polybench_options.POLYBENCH_PAPI, ooo[polybench_options.POLYBENCH_PAPI]}')
-                    print(f'    (Array, {options["array_implementation"]})')
+                    print(f'    {polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION, ooo[polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION]}')
 
                 # Retrieve the appropriate parameters for initializing the current class
                 bench_params = {}
@@ -413,7 +413,7 @@ if __name__ == '__main__':
                 # Run the benchmark N times. N will be either 1 or a greater number passed by argument.
                 for i in range(iterations):
                     # Instantiate a new class with it
-                    instance = implementation(options, parameters)  # creates a new instance
+                    instance = implementation(options['polybench_options'], parameters)  # creates a new instance
                     # Run the benchmark. The returned value is a dictionary.
                     polybench_result = instance.run()
 

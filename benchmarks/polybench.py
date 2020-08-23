@@ -78,7 +78,7 @@ class PolyBench:
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
-    def __init__(self, commandline_options: dict):
+    def __init__(self, options: dict):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
@@ -87,7 +87,6 @@ class PolyBench:
         call came from a subclass or not.
         """
 
-        options = commandline_options['polybench_options']
         # Check whether __init__ is being called from a subclass.
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
         # PolyBench. As the documentation states, issubclass(X, X) -> True
@@ -117,7 +116,7 @@ class PolyBench:
                 self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
 
             # PolyBench/Python options
-            self.ARRAY_IMPLEMENTATION = commandline_options['array_implementation']
+            self.ARRAY_IMPLEMENTATION = options[polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION]
 
             # Define in-line C functions for interpreters different than CPython
             if python_implementation() != 'CPython':
@@ -245,7 +244,7 @@ class PolyBench:
         if self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
             return self.__create_array_rec(dimensions, new_sizes, initialization_value)
         elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
-            # A flattened list only has one dimension, which value is the product of all dimensions.
+            # A flattened list only has one dimension, whose value is the product of all dimensions.
             dimension_size = 1
             for dim_size in new_sizes:
                 dimension_size *= dim_size
@@ -257,7 +256,7 @@ class PolyBench:
         else:
             raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 
-    def initialize_array(self, array: list):
+    def initialize_array(self, *args, **kwargs):
         """Implements the array initialization.
 
         Implement this method when requiring a special array initialization.
@@ -419,9 +418,9 @@ class PolyBench:
     def __timer_print(self):
         self.polybench_result = self.__timer_stop_t - self.__timer_start_t
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
-            print(f'{self.__timer_stop_t - self.__timer_start_t:0.6f}')
+            print(f'{self.polybench_result:0.6f}')
         else:
-            print(f'{self.__timer_stop_t - self.__timer_start_t:d}')
+            print(f'{self.polybench_result:d}')
 
     def __papi_init(self):
         """
@@ -429,7 +428,7 @@ class PolyBench:
 
         Since the library python-papi only exports standard events, it is necessary to know which ones are available and
         which ones are requested by the user to perform a validation phase.
-        :return: None
+        :return: None. Modifies self.__papi_counters.
         """
         def get_available_counters() -> list:
             """
