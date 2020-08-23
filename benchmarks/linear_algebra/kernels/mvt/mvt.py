@@ -15,14 +15,14 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench_classes import PolyBenchParameters
-from benchmarks.polybench_options import ArrayImplementation
+from benchmarks.polybench_classes import ArrayImplementation
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 from numpy.core.multiarray import ndarray
 
 
 class Mvt(PolyBench):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         implementation = options['array_implementation']
         if implementation == ArrayImplementation.LIST:
             return _MvtList.__new__(cls, options, parameters)
@@ -31,22 +31,14 @@ class Mvt(PolyBench):
         elif implementation == ArrayImplementation.NUMPY:
             return _MvtNumPy.__new__(cls, options, parameters)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
-        super().__init__(options)
-
-        # Validate inputs
-        if not isinstance(parameters, PolyBenchParameters):
-            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        super().__init__(options, parameters)
 
         # The parameters hold the necessary information obtained from "polybench.spec" file
         params = parameters.DataSets.get(self.DATASET_SIZE)
         if not isinstance(params, dict):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
-
-        # Adjust the data type and print modifier according to the data type
-        self.DATA_TYPE = parameters.DataType
-        self.set_print_modifier(parameters.DataType)
 
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.N = params.get('N')
@@ -94,10 +86,10 @@ class Mvt(PolyBench):
 
 class _MvtList(Mvt):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         return object.__new__(_MvtList)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, x1: list, x2: list, y_1: list, y_2: list, A: list):
@@ -123,10 +115,10 @@ class _MvtList(Mvt):
 
 class _MvtListFlattened(Mvt):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         return object.__new__(_MvtListFlattened)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, x1: list, x2: list, y_1: list, y_2: list, A: list):
@@ -152,10 +144,10 @@ class _MvtListFlattened(Mvt):
 
 class _MvtNumPy(Mvt):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         return object.__new__(_MvtNumPy)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, x1: ndarray, x2: ndarray, y_1: ndarray, y_2: ndarray, A: ndarray):

@@ -15,38 +15,30 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench_classes import PolyBenchParameters
-from benchmarks.polybench_options import ArrayImplementation
+from benchmarks.polybench_classes import ArrayImplementation
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 from numpy.core.multiarray import ndarray
 
 
 class Symm(PolyBench):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         implementation = options['array_implementation']
         if implementation == ArrayImplementation.LIST:
-            return _SymmList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _SymmListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _SymmNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(cls, options, parameters)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
-        super().__init__(options)
-
-        # Validate inputs
-        if not isinstance(parameters, PolyBenchParameters):
-            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        super().__init__(options, parameters)
 
         # The parameters hold the necessary information obtained from "polybench.spec" file
         params = parameters.DataSets.get(self.DATASET_SIZE)
         if not isinstance(params, dict):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
-
-        # Adjust the data type and print modifier according to the data type
-        self.DATA_TYPE = parameters.DataType
-        self.set_print_modifier(parameters.DataType)
 
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.M = params.get('M')
@@ -87,12 +79,12 @@ class Symm(PolyBench):
         return [('C', C)]
 
 
-class _SymmList(Symm):
+class _StrategyList(Symm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_SymmList)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyList)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: list, A: list, B: list):
@@ -134,12 +126,12 @@ class _SymmList(Symm):
 # scop end
 
 
-class _SymmListFlattened(Symm):
+class _StrategyListFlattened(Symm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_SymmListFlattened)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyListFlattened)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: list, A: list, B: list):
@@ -173,12 +165,12 @@ class _SymmListFlattened(Symm):
 # scop end
 
 
-class _SymmNumPy(Symm):
+class _StrategyNumPy(Symm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_SymmNumPy)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyNumPy)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: ndarray, A: ndarray, B: ndarray):

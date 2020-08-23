@@ -15,39 +15,31 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench_classes import PolyBenchParameters
-from benchmarks.polybench_options import ArrayImplementation
+from benchmarks.polybench_classes import ArrayImplementation
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 from numpy.core.multiarray import ndarray
 import math
 
 
 class Cholesky(PolyBench):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         implementation = options['array_implementation']
         if implementation == ArrayImplementation.LIST:
-            return _CholeskyList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _CholeskyListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _CholeskyNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(cls, options, parameters)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
-        super().__init__(options)
-
-        # Validate inputs
-        if not isinstance(parameters, PolyBenchParameters):
-            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        super().__init__(options, parameters)
 
         # The parameters hold the necessary information obtained from "polybench.spec" file
         params = parameters.DataSets.get(self.DATASET_SIZE)
         if not isinstance(params, dict):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
-
-        # Adjust the data type and print modifier according to the data type
-        self.DATA_TYPE = parameters.DataType
-        self.set_print_modifier(parameters.DataType)
 
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.N = params.get('N')
@@ -82,12 +74,12 @@ class Cholesky(PolyBench):
         return [('A', A)]
 
 
-class _CholeskyList(Cholesky):
+class _StrategyList(Cholesky):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_CholeskyList)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyList)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, A: list):
@@ -135,12 +127,12 @@ class _CholeskyList(Cholesky):
 # scop end
 
 
-class _CholeskyListFlattened(Cholesky):
+class _StrategyListFlattened(Cholesky):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_CholeskyListFlattened)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyListFlattened)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, A: list):
@@ -188,12 +180,12 @@ class _CholeskyListFlattened(Cholesky):
 # scop end
 
 
-class _CholeskyNumPy(Cholesky):
+class _StrategyNumPy(Cholesky):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_CholeskyNumPy)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyNumPy)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, A: ndarray):

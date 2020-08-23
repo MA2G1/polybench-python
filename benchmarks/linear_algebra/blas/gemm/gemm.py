@@ -15,28 +15,24 @@
 """<replace_with_module_description>"""
 
 from benchmarks.polybench import PolyBench
-from benchmarks.polybench_classes import PolyBenchParameters
-from benchmarks.polybench_options import ArrayImplementation
+from benchmarks.polybench_classes import ArrayImplementation
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 from numpy.core.multiarray import ndarray
 
 
 class Gemm(PolyBench):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
         implementation = options['array_implementation']
         if implementation == ArrayImplementation.LIST:
-            return _GemmList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _GemmListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(cls, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _GemmNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(cls, options, parameters)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
-        super().__init__(options)
-
-        # Validate inputs
-        if not isinstance(parameters, PolyBenchParameters):
-            raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        super().__init__(options, parameters)
 
         # The parameters hold the necessary information obtained from "polybench.spec" file
         params = parameters.DataSets.get(self.DATASET_SIZE)
@@ -44,15 +40,10 @@ class Gemm(PolyBench):
             raise NotImplementedError(f'Dataset size "{self.DATASET_SIZE.name}" not implemented '
                                       f'for {parameters.Category}/{parameters.Name}.')
 
-        # Adjust the data type and print modifier according to the data type
-        self.DATA_TYPE = parameters.DataType
-        self.set_print_modifier(parameters.DataType)
-
         # Set up problem size from the given parameters (adapt this part with appropriate parameters)
         self.NI = params.get('NI')
         self.NJ = params.get('NJ')
         self.NK = params.get('NK')
-
 
     def run_benchmark(self):
         # Create data structures (arrays, auxiliary variables, etc.)
@@ -89,12 +80,12 @@ class Gemm(PolyBench):
         return [('C', C)]
 
 
-class _GemmList(Gemm):
+class _StrategyList(Gemm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_GemmList)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyList)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: list, A: list, B: list):
@@ -129,12 +120,12 @@ class _GemmList(Gemm):
 # scop end
 
 
-class _GemmListFlattened(Gemm):
+class _StrategyListFlattened(Gemm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_GemmListFlattened)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyListFlattened)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: list, A: list, B: list):
@@ -169,12 +160,12 @@ class _GemmListFlattened(Gemm):
 # scop end
 
 
-class _GemmNumPy(Gemm):
+class _StrategyNumPy(Gemm):
 
-    def __new__(cls, options: dict, parameters: PolyBenchParameters):
-        return object.__new__(_GemmNumPy)
+    def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
+        return object.__new__(_StrategyNumPy)
 
-    def __init__(self, options: dict, parameters: PolyBenchParameters):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
 
     def initialize_array(self, C: ndarray, A: ndarray, B: ndarray):
