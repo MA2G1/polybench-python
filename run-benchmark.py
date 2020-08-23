@@ -24,9 +24,8 @@ the different kernels."""
 from platform import python_implementation
 
 from benchmarks import benchmark_classes
-from benchmarks.polybench_classes import PolyBenchParameters
-from benchmarks.polybench_options import DataSetSize, ArrayImplementation
-import benchmarks.polybench_options as polybench_options
+from benchmarks.polybench_classes import ArrayImplementation, DataSetSize
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpecFile
 
 # Using argparse for parsing commandline options. See: https://docs.python.org/3.7/library/argparse.html
 import argparse
@@ -47,6 +46,17 @@ if __name__ == '__main__':
         """
         if len(benchmark_classes) < 1:
             raise NotImplementedError("There are no available benchmarks to run.")
+
+
+    def print_available_benchmarks() -> None:
+        """
+        Prints on screen the available benchmarks (if any)
+        :return: information on screen (commandline)
+        """
+        check_benchmark_availability()
+        print('List of available benchmarks:')
+        for impl in benchmark_classes:
+            print(f'  {impl.__module__.replace(".", "/")}.py')
 
 
     def parse_command_line() -> {
@@ -111,7 +121,7 @@ if __name__ == '__main__':
         # Initialize the result dictionary
         result = {
             'benchmark': None,  # should hold a string
-            'polybench_options': None,  # should hold a dict with options
+            'polybench_options': PolyBenchOptions(),  # Stores PolyBench specific options
             'save_results': False,  # Allows to save execution results into a file
             'verify': {
                 'enabled': False,  # Controls whether to verify results or not
@@ -204,14 +214,14 @@ if __name__ == '__main__':
 
         # Process PolyBench options
         # First import default options into polybench_options
-        result['polybench_options'] = polybench_options.polybench_default_options.copy()
         if not (args.options is None):
             # Comma separated text -> split
             options = args.options.split(',')
+            polybench_opts = result['polybench_options']
             for option in options:
-                if option in result['polybench_options']:  # simple "exists" validation
+                if option in polybench_opts:  # simple "exists" validation
                     # Only boolean options can pass this validation
-                    result['polybench_options'][option] = True
+                    polybench_opts[option] = True
                 else:  # may not exist if the text does not match
                     # Check if it is of the form OPT=val
                     opval = list(option.split('='))
@@ -219,12 +229,12 @@ if __name__ == '__main__':
                         # Ok. Key-value found. Only a few of these exist... check manually
                         # ... for numerical conversions (currently all integers)
                         if opval[1].isnumeric():
-                            result['polybench_options'][opval[0]] = int(opval[1])
+                            polybench_opts[opval[0]] = int(opval[1])
 
         # Custom command line options can override output printing (the verify option). Update polybench_options
         if print_result:
-            result['polybench_options'][polybench_options.POLYBENCH_DUMP_ARRAYS] = True
-            result['polybench_options'][polybench_options.POLYBENCH_DUMP_TARGET] = result['output_array']
+            result['polybench_options'].POLYBENCH_DUMP_ARRAYS = True
+            result['polybench_options'].POLYBENCH_DUMP_TARGET = result['output_array']
 
         # Append the dataset size if required
         if not (args.dataset_size is None):
@@ -232,7 +242,7 @@ if __name__ == '__main__':
             if args.dataset_size not in [DataSetSize.MINI.name, DataSetSize.SMALL.name, DataSetSize.MEDIUM.name,
                                          DataSetSize.LARGE.name, DataSetSize.EXTRA_LARGE.name]:
                 raise RuntimeError(f'Invalid value for parameter --dataset-size: "{args.dataset_size}"')
-            result['polybench_options'][polybench_options.POLYBENCH_DATASET_SIZE] = DataSetSize[args.dataset_size]
+            result['polybench_options'].POLYBENCH_DATASET_SIZE = DataSetSize[args.dataset_size]
 
         # Process the number of iterations.
         if not str(args.iterations).isnumeric() or int(args.iterations) < 1:
@@ -247,82 +257,19 @@ if __name__ == '__main__':
                 n = 0  # default
 
             if n == 0:
-                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.LIST
+                result['polybench_options'].POLYBENCH_ARRAY_IMPLEMENTATION = ArrayImplementation.LIST
             elif n == 1:
-                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.LIST_FLATTENED
+                result['polybench_options'].POLYBENCH_ARRAY_IMPLEMENTATION = ArrayImplementation.LIST_FLATTENED
             elif n == 2:
-                result['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] = ArrayImplementation.NUMPY
+                result['polybench_options'].POLYBENCH_ARRAY_IMPLEMENTATION = ArrayImplementation.NUMPY
         else:
             raise AssertionError('Argument "array-implementation" must be a number.')
 
         # Process save results. Only save when results are available (POLYBENCH_TIME or POLYBENCH_PAPI)
         if args.save_results:
             opts = result['polybench_options']
-            if opts[polybench_options.POLYBENCH_TIME] or opts[polybench_options.POLYBENCH_PAPI]:
+            if opts.POLYBENCH_TIME or opts.POLYBENCH_PAPI:
                 result['save_results'] = True
-
-        return result
-
-
-    def print_available_benchmarks() -> None:
-        """
-        Prints on screen the available benchmarks (if any)
-        :return: information on screen (commandline)
-        """
-        check_benchmark_availability()
-        print('List of available benchmarks:')
-        for impl in benchmark_classes:
-            print(f'  {impl.__module__.replace(".", "/")}.py')
-
-
-    def parse_spec_file() -> list:
-        """Parses the polybench.spec file for obtaining all data for customizing a benchmark.
-
-        :return: a list of dictionaries, each one holding all the information for a benchmark.
-        :rtype: list[dict]
-        """
-        result = []
-        with open('polybench.spec') as spec_file:
-            # Since the file is small enough, processing line per line should not have any noticeable performance hit.
-            spec_file.readline()  # skip header line
-            for line in spec_file:
-                dictionary = {}
-                elements = line.split('\t')
-                dictionary['kernel'] = elements[0]
-                dictionary['category'] = elements[1]
-                dictionary['datatype'] = elements[2]
-                dictionary['params'] = elements[3].split(' ')
-                not_numbers = elements[4].split(' ')
-                numbers = []
-                for nn in not_numbers:
-                    numbers.append(int(nn))
-                dictionary['MINI'] = numbers
-
-                not_numbers = elements[5].split(' ')
-                numbers = []
-                for nn in not_numbers:
-                    numbers.append(int(nn))
-                dictionary['SMALL'] = numbers
-
-                not_numbers = elements[6].split(' ')
-                numbers = []
-                for nn in not_numbers:
-                    numbers.append(int(nn))
-                dictionary['MEDIUM'] = numbers
-
-                not_numbers = elements[7].split(' ')
-                numbers = []
-                for nn in not_numbers:
-                    numbers.append(int(nn))
-                dictionary['LARGE'] = numbers
-
-                not_numbers = elements[8].split(' ')
-                numbers = []
-                for nn in not_numbers:
-                    numbers.append(int(nn))
-                dictionary['EXTRALARGE'] = numbers
-
-                result.append(dictionary)
 
         return result
 
@@ -349,18 +296,18 @@ if __name__ == '__main__':
         output_str += '_' + python_implementation()
 
         # Append measurement type information
-        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
-            if options['polybench_options'][polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]:
+        if options['polybench_options'].POLYBENCH_TIME:
+            if options['polybench_options'].POLYBENCH_CYCLE_ACCURATE_TIMER:
                 output_str += '_timer-ca'
             else:
                 output_str += '_timer'
-        elif options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+        elif options['polybench_options'].POLYBENCH_PAPI:
             output_str += '_papi'
 
         # Append array type implementation
-        if options['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] == ArrayImplementation.LIST:
+        if options['polybench_options'].POLYBENCH_ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
             output_str += '_array=list'
-        elif options['polybench_options'][polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION] == ArrayImplementation.LIST_FLATTENED:
+        elif options['polybench_options'].POLYBENCH_ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
             output_str += '_array=flattenedlist'
         else:
             output_str += '_array=numpy'
@@ -368,7 +315,7 @@ if __name__ == '__main__':
         return open(output_str, 'w')
 
 
-    def run(options: dict, spec_params: list) -> None:
+    def run(options: dict, spec_file: PolyBenchSpecFile) -> None:
         # Set up parameters which may modify execution behavior
         module_name = options['benchmark']
         # Parameters used in case of verification
@@ -390,20 +337,17 @@ if __name__ == '__main__':
                     print(f'  Options: ')
                     print(f'    (iterations, {iterations})')
                     ooo = options['polybench_options']
-                    print(f'    {polybench_options.POLYBENCH_TIME, ooo[polybench_options.POLYBENCH_TIME]}')
-                    print(f'    {polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER, ooo[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]}')
-                    print(f'    {polybench_options.POLYBENCH_PAPI, ooo[polybench_options.POLYBENCH_PAPI]}')
-                    print(f'    {polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION, ooo[polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION]}')
+                    print(f'    {"POLYBENCH_TIME", ooo.POLYBENCH_TIME}')
+                    print(f'    {"POLYBENCH_CYCLE_ACCURATE_TIMER", ooo.POLYBENCH_CYCLE_ACCURATE_TIMER}')
+                    print(f'    {"POLYBENCH_PAPI", ooo.POLYBENCH_PAPI}')
+                    print(f'    {"POLYBENCH_ARRAY_IMPLEMENTATION", ooo.POLYBENCH_ARRAY_IMPLEMENTATION}')
 
-                # Retrieve the appropriate parameters for initializing the current class
-                bench_params = {}
+                # Retrieve the appropriate parameters for initializing the current benchmark class
                 non_pythonic_benchmark = implementation.__module__.replace('_', '-')
-                for spec in spec_params:
-                    if spec['kernel'] in non_pythonic_benchmark:
-                        bench_params = spec
+                for spec in spec_file.specs:
+                    if spec.Name in non_pythonic_benchmark:
+                        bench_specs = spec
                         break
-                # Create a parameters object for passing to the benchmark
-                parameters = PolyBenchParameters(bench_params)
 
                 if options['save_results']:
                     output_f = get_output_file(implementation.__module__.replace('.', '/'), options)
@@ -413,24 +357,24 @@ if __name__ == '__main__':
                 # Run the benchmark N times. N will be either 1 or a greater number passed by argument.
                 for i in range(iterations):
                     # Instantiate a new class with it
-                    instance = implementation(options['polybench_options'], parameters)  # creates a new instance
+                    instance = implementation(options['polybench_options'], bench_specs)  # creates a new instance
                     # Run the benchmark. The returned value is a dictionary.
                     polybench_result = instance.run()
 
                     if options['save_results']:
                         # Perform operations against the output data when the appropriate option is enabled.
-                        if options['polybench_options'][polybench_options.POLYBENCH_TIME]:
-                            output_f.write(f'{polybench_result[polybench_options.POLYBENCH_TIME]}\n')
+                        if options['polybench_options'].POLYBENCH_TIME:
+                            output_f.write(f'{polybench_result["POLYBENCH_TIME"]}\n')
                             output_f.flush()
 
-                        if options['polybench_options'][polybench_options.POLYBENCH_PAPI]:
+                        if options['polybench_options'].POLYBENCH_PAPI:
                             if first_run:
                                 # Print headers
-                                for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
+                                for counter in polybench_result["POLYBENCH_PAPI"]:
                                     output_f.write(f'{counter}\t')
                                 output_f.write('\n')
-                            for counter in polybench_result[polybench_options.POLYBENCH_PAPI]:
-                                output_f.write(f'{polybench_result[polybench_options.POLYBENCH_PAPI][counter]}\t')
+                            for counter in polybench_result["POLYBENCH_PAPI"]:
+                                output_f.write(f'{polybench_result["POLYBENCH_PAPI"][counter]}\t')
                             output_f.write('\n')
                             output_f.flush()
 
@@ -455,6 +399,6 @@ if __name__ == '__main__':
     # Parse the command line arguments first. We need at least one mandatory parameter.
     opts = parse_command_line()
     # Parse the spec file for obtaining all of the benchmark's parameters
-    spec_params = parse_spec_file()
+    spec_f = PolyBenchSpecFile('polybench.spec')
     # Run the benchmark (and other user options)
-    run(opts, spec_params)
+    run(opts, spec_f)

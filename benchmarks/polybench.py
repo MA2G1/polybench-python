@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """This module offers the base Polybench class for implementing kernels in benchmarks."""
-from benchmarks.polybench_options import DataSetSize, ArrayImplementation
-import benchmarks.polybench_options as polybench_options
+from benchmarks.polybench_classes import DataSetSize, ArrayImplementation
+from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 
 from platform import python_implementation  # Used to determine "inline" C code usage
 from sys import stderr
@@ -78,7 +78,7 @@ class PolyBench:
     DATA_TYPE = int  # The data type used for the current benchmark (used for conversions and formatting)
     DATA_PRINT_MODIFIER = '{:d} '  # A default print modifier. Should be set up in run()
 
-    def __init__(self, options: dict):
+    def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         """Class constructor.
 
         Since this is an abstract class, this method prevents its instantiation by throwing a RuntimeError.
@@ -91,34 +91,58 @@ class PolyBench:
         # The first check is for preventing the issubclass() call from returning True when directly instantiating
         # PolyBench. As the documentation states, issubclass(X, X) -> True
         if self.__class__ != PolyBench and issubclass(self.__class__, PolyBench):
+            #
+            # Validate inputs
+            #
+            if not isinstance(parameters, PolyBenchSpec):
+                raise AssertionError(f'Invalid parameter "parameters": "{parameters}"')
+
+            #
+            # Set up benchmark parameters
+            #
+            # ... Adjust the data type and print modifier according to the data type
+            self.DATA_TYPE = parameters.DataType
+            # ... Adjust the print modifier to the data type
+            if self.DATA_TYPE == int:
+                self.DATA_PRINT_MODIFIER = '{:d} '
+            elif self.DATA_TYPE == float:
+                self.DATA_PRINT_MODIFIER = '{:0.2f} '
+            else:
+                raise NotImplementedError(f'Unknown print modifier for type {self.DATA_TYPE}')
+
+            #
+            # Set up PolyBench options
+            #
             # The options dictionary is expected to have all possible options. Blindly assign values.
             # Typical options
-            self.POLYBENCH_TIME = options[polybench_options.POLYBENCH_TIME]
-            self.POLYBENCH_DUMP_ARRAYS = options[polybench_options.POLYBENCH_DUMP_ARRAYS]
+            self.POLYBENCH_TIME = options.POLYBENCH_TIME
+            self.POLYBENCH_DUMP_ARRAYS = options.POLYBENCH_DUMP_ARRAYS
 
             # Options that may lead to better performance
-            self.POLYBENCH_PADDING_FACTOR = options[polybench_options.POLYBENCH_PADDING_FACTOR]
+            self.POLYBENCH_PADDING_FACTOR = options.POLYBENCH_PADDING_FACTOR
 
             # Timing/profiling options
-            self.POLYBENCH_PAPI = options[polybench_options.POLYBENCH_PAPI]
-            self.POLYBENCH_CACHE_SIZE_KB = options[polybench_options.POLYBENCH_CACHE_SIZE_KB]
-            self.POLYBENCH_NO_FLUSH_CACHE = options[polybench_options.POLYBENCH_NO_FLUSH_CACHE]
-            self.POLYBENCH_CYCLE_ACCURATE_TIMER = options[polybench_options.POLYBENCH_CYCLE_ACCURATE_TIMER]
-            self.POLYBENCH_LINUX_FIFO_SCHEDULER = options[polybench_options.POLYBENCH_LINUX_FIFO_SCHEDULER]
+            self.POLYBENCH_PAPI = options.POLYBENCH_PAPI
+            self.POLYBENCH_CACHE_SIZE_KB = options.POLYBENCH_CACHE_SIZE_KB
+            self.POLYBENCH_NO_FLUSH_CACHE = options.POLYBENCH_NO_FLUSH_CACHE
+            self.POLYBENCH_CYCLE_ACCURATE_TIMER = options.POLYBENCH_CYCLE_ACCURATE_TIMER
+            self.POLYBENCH_LINUX_FIFO_SCHEDULER = options.POLYBENCH_LINUX_FIFO_SCHEDULER
 
             # Other options (not present in the README file)
-            self.POLYBENCH_DUMP_TARGET = options[polybench_options.POLYBENCH_DUMP_TARGET]
-            self.POLYBENCH_GFLOPS = options[polybench_options.POLYBENCH_GFLOPS]
-            self.POLYBENCH_PAPI_VERBOSE = options[polybench_options.POLYBENCH_PAPI_VERBOSE]
+            self.POLYBENCH_DUMP_TARGET = options.POLYBENCH_DUMP_TARGET
+            self.POLYBENCH_GFLOPS = options.POLYBENCH_GFLOPS
+            self.POLYBENCH_PAPI_VERBOSE = options.POLYBENCH_PAPI_VERBOSE
 
             # The following option is checked for preventing circular references with polybench_options
-            if options[polybench_options.POLYBENCH_DATASET_SIZE] is not None:
-                self.DATASET_SIZE = options[polybench_options.POLYBENCH_DATASET_SIZE]
+            if options.POLYBENCH_DATASET_SIZE is not None:
+                self.DATASET_SIZE = options.POLYBENCH_DATASET_SIZE
 
             # PolyBench/Python options
-            self.ARRAY_IMPLEMENTATION = options[polybench_options.POLYBENCH_ARRAY_IMPLEMENTATION]
+            self.ARRAY_IMPLEMENTATION = options.POLYBENCH_ARRAY_IMPLEMENTATION
 
+            #
             # Define in-line C functions for interpreters different than CPython
+            #
             if python_implementation() != 'CPython':
                 from inline import c
                 # Linux scheduler code snippets taken from PolyBench/C
@@ -138,7 +162,9 @@ class PolyBench:
                 self.__native_linux_fifo_scheduler = linux_shedulers.polybench_linux_fifo_scheduler
                 self.__native_linux_standard_scheduler = linux_shedulers.polybench_linux_standard_scheduler
 
+            #
             # Define the inline-assembly function _read_tsc()
+            #
             asm_code = """
                  bits 64
                  RDTSC
@@ -305,18 +331,6 @@ class PolyBench:
         """
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
 
-    def set_print_modifier(self, _type):
-        """
-        Adjusts the data print modifier according to the data type.
-        :param _type: The type of the data. Supported types are 'int' and 'float'
-        """
-        if _type == int:
-            self.DATA_PRINT_MODIFIER = '{:d} '
-        elif _type == float:
-            self.DATA_PRINT_MODIFIER = '{:0.2f} '
-        else:
-            raise NotImplementedError(f'Unknown print modifier for type {_type}')
-
     def run(self) -> dict:
         """Prepares the environment for running a benchmark, executes it and shows the result.
 
@@ -350,10 +364,10 @@ class PolyBench:
 
         if self.POLYBENCH_TIME:
             # Return execution time
-            return {polybench_options.POLYBENCH_TIME: self.polybench_result}
+            return {"POLYBENCH_TIME": self.polybench_result}
         if self.POLYBENCH_PAPI:
             # Return PAPI counters
-            return {polybench_options.POLYBENCH_PAPI: self.polybench_result}
+            return {"POLYBENCH_PAPI": self.polybench_result}
         return {}
 
     def run_benchmark(self):
