@@ -219,7 +219,7 @@ class PolyBench:
 
     @abstractmethod
     def run_benchmark(self):
-        """Implements the kernel to be benchmarked.
+        """Implements the code required for running a specific benchmark.
 
         This method **MUST** be overridden by subclasses.
 

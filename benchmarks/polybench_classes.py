@@ -19,20 +19,28 @@ from enum import Enum, auto
 class _CustomDict(dict):
     """This class implements a Python dict in order to provide dict-like attribute access to inheriting subclasses."""
 
-    def __getattr__(self, item):
-        if item in self:
-            return self[item]
-        else:
-            raise AttributeError(f"No such attribute: {item}")
+    def __init__(self):
+        super(_CustomDict, self).__init__()
+        self.__dict__ = self
 
-    def __setattr__(self, key, value):
-        self[key] = value
+    #
+    # The following group of methods allow to expose the elements of the __dict__ as class fields.
+    #
 
-    def __delattr__(self, item):
-        if item in self:
-            del self[item]
-        else:
-            raise AttributeError(f"No such attribute: {item}")
+    # def __getattr__(self, item):
+    #     if item in self:
+    #         return self[item]
+    #     else:
+    #         raise AttributeError(f"No such attribute: {item}")
+    #
+    # def __setattr__(self, key, value):
+    #     self[key] = value
+    #
+    # def __delattr__(self, item):
+    #     if item in self:
+    #         del self[item]
+    #     else:
+    #         raise AttributeError(f"No such attribute: {item}")
 
 
 class DataSetSize(Enum):
@@ -60,6 +68,8 @@ class PolyBenchOptions(_CustomDict):
     This class inherits from _CustomDict in order to allow dict-like attribute access."""
 
     def __init__(self):
+        super(PolyBenchOptions, self).__init__()
+
         # Typical options
         self.POLYBENCH_TIME = False             # Print out execution time
         self.POLYBENCH_DUMP_ARRAYS = False      # Dump live-out arrays
@@ -95,6 +105,8 @@ class PolyBenchSpec(_CustomDict):
     This class inherits from _CustomDict in order to allow dict-like attribute access."""
 
     def __init__(self, parameters: dict):
+        super(PolyBenchSpec, self).__init__()
+
         """Process the parameters dictionary and store its values on public class fields."""
         self.Name = parameters['kernel']
         self.Category = parameters['category']
