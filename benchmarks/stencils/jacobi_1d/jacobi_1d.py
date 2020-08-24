@@ -40,9 +40,9 @@ class Jacobi_1d(PolyBench):
 
     def print_array_custom(self, A: list, name: str):
         for i in range(0, self.N):
-                if i % 20 == 0:
-                    self.print_message('\n')
-                self.print_value(A[i])
+            if i % 20 == 0:
+                self.print_message('\n')
+            self.print_value(A[i])
 
     def kernel(self, A: list, B: list):
 # scop begin
@@ -62,14 +62,8 @@ class Jacobi_1d(PolyBench):
         # Initialize data structures
         self.initialize_array(A, B)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, B)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(A, B)
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

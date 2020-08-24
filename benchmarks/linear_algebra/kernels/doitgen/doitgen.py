@@ -23,13 +23,13 @@ from numpy.core.multiarray import ndarray
 class Doitgen(PolyBench):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        implementation = options['array_implementation']
+        implementation = options.POLYBENCH_ARRAY_IMPLEMENTATION
         if implementation == ArrayImplementation.LIST:
-            return _StrategyList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(_StrategyList, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _StrategyListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(_StrategyListFlattened, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _StrategyNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(_StrategyNumPy, options, parameters)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -54,14 +54,8 @@ class Doitgen(PolyBench):
         # Initialize data structures
         self.initialize_array(A, C4)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, C4, sum)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(A, C4, sum)
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

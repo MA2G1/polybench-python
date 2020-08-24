@@ -75,14 +75,8 @@ class Durbin(PolyBench):
         # Initialize data structures
         self.initialize_array(r)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(r, y)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(r, y)
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:

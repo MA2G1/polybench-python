@@ -23,13 +23,13 @@ from numpy.core.multiarray import ndarray
 class Mvt(PolyBench):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        implementation = options['array_implementation']
+        implementation = options.POLYBENCH_ARRAY_IMPLEMENTATION
         if implementation == ArrayImplementation.LIST:
-            return _MvtList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(_StrategyList, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _MvtListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(_StrategyListFlattened, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _MvtNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(_StrategyNumPy, options, parameters)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -61,14 +61,8 @@ class Mvt(PolyBench):
         # Initialize data structures
         self.initialize_array(x1, x2, y_1, y_2, A)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(x1, x2, y_1, y_2, A)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(x1, x2, y_1, y_2, A)
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
@@ -84,10 +78,10 @@ class Mvt(PolyBench):
         return [('x1', x1), ('x2', x2)]
 
 
-class _MvtList(Mvt):
+class _StrategyList(Mvt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_MvtList)
+        return object.__new__(_StrategyList)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -113,10 +107,10 @@ class _MvtList(Mvt):
 # scop end
 
 
-class _MvtListFlattened(Mvt):
+class _StrategyListFlattened(Mvt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_MvtListFlattened)
+        return object.__new__(_StrategyListFlattened)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -142,10 +136,10 @@ class _MvtListFlattened(Mvt):
 # scop end
 
 
-class _MvtNumPy(Mvt):
+class _StrategyNumPy(Mvt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_MvtNumPy)
+        return object.__new__(_StrategyNumPy)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)

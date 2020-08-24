@@ -24,13 +24,13 @@ import math
 class Gramschmidt(PolyBench):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        implementation = options['array_implementation']
+        implementation = options.POLYBENCH_ARRAY_IMPLEMENTATION
         if implementation == ArrayImplementation.LIST:
-            return _GramschmidtList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(_StrategyList, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _GramschmidtListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(_StrategyListFlattened, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _GramschmidtNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(_StrategyNumPy, options, parameters)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -54,14 +54,8 @@ class Gramschmidt(PolyBench):
         # Initialize data structures
         self.initialize_array(A, R, Q)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(A, R, Q)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(A, R, Q)
 
         # Return printable data as a list of tuples ('name', value).
         # Each tuple element must have the following format:
@@ -77,10 +71,10 @@ class Gramschmidt(PolyBench):
         return [('R', R), ('Q', Q)]
 
 
-class _GramschmidtList(Gramschmidt):
+class _StrategyList(Gramschmidt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_GramschmidtList)
+        return object.__new__(_StrategyList)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -128,10 +122,10 @@ class _GramschmidtList(Gramschmidt):
 # scop end
 
 
-class _GramschmidtListFlattened(Gramschmidt):
+class _StrategyListFlattened(Gramschmidt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_GramschmidtListFlattened)
+        return object.__new__(_StrategyListFlattened)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -179,10 +173,10 @@ class _GramschmidtListFlattened(Gramschmidt):
 # scop end
 
 
-class _GramschmidtNumPy(Gramschmidt):
+class _StrategyNumPy(Gramschmidt):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_GramschmidtNumPy)
+        return object.__new__(_StrategyNumPy)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)

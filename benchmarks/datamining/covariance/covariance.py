@@ -23,13 +23,13 @@ from numpy.core.multiarray import ndarray
 class Covariance(PolyBench):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        implementation = options['array_implementation']
+        implementation = options.POLYBENCH_ARRAY_IMPLEMENTATION
         if implementation == ArrayImplementation.LIST:
-            return _StrategyList.__new__(cls, options, parameters)
+            return _StrategyList.__new__(_StrategyList, options, parameters)
         elif implementation == ArrayImplementation.LIST_FLATTENED:
-            return _StrategyListFlattened.__new__(cls, options, parameters)
+            return _StrategyListFlattened.__new__(_StrategyListFlattened, options, parameters)
         elif implementation == ArrayImplementation.NUMPY:
-            return _StrategyNumPy.__new__(cls, options, parameters)
+            return _StrategyNumPy.__new__(_StrategyNumPy, options, parameters)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
@@ -55,17 +55,12 @@ class Covariance(PolyBench):
         # Initialize array(s)
         self.initialize_array(data)
 
-        # Start instruments
-        self.start_instruments()
-
-        # Run kernel
-        self.kernel(float_n, data, cov, mean)
-
-        # Stop and print instruments
-        self.stop_instruments()
+        # Benchmark the kernel
+        self.time_kernel(float_n, data, cov, mean)
 
         # Return printable data as a list of tuples ('name', value)
         return [('cov', cov)]
+
 
 class _StrategyList(Covariance):
 
