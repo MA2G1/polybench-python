@@ -12,24 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module offers the base Polybench class for implementing kernels in benchmarks."""
+"""This module offers the base Polybench class for implementing benchmarks."""
+
+# Check if the current platform is Linux, otherwise running PolyBench makes no sense at all.
+# Currently PolyBench/Python can only run on Linux due to some runtime dependencies.
+from platform import system
+if system() != 'Linux':
+    raise NotImplementedError('PolyBench/Python is only available for Linux.')
+
+#
+# PolyBench requirements
+#
+from abc import abstractmethod
 from benchmarks.polybench_classes import DataSetSize, ArrayImplementation
 from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 
-from platform import python_implementation  # Used to determine "inline" C code usage
+#
+# Standard types and methods
+#
 from sys import stderr
 from time import time
+import os  # For controlling Linux scheduler
 
+#
+# External libraries
+#
+# NumPy
 import numpy
-
-# Import requirements for PAPI
+# python_papi
 from pypapi import events as papi_events, papi_high
-
-# Import requirements for inlineasm
+# inlineasm
 from inlineasm import assemble
 from ctypes import c_ulonglong
 
-import os
+#
+# Workarounds
+#
+from platform import python_implementation  # Used to determine the interpreter
 
 
 class PolyBench:
@@ -177,6 +196,42 @@ class PolyBench:
         else:
             raise RuntimeError('Abstract classes cannot be instantiated.')
 
+    @abstractmethod
+    def initialize_array(self, *args, **kwargs):
+        """Implements the array initialization procedure.
+
+        Implement this method when requiring a special array initialization.
+        """
+        raise NotImplementedError('Initialize array not implemented')
+
+    @abstractmethod
+    def print_array_custom(self, array: list, dump_message: str = ''):
+        """Prints the benchmark array using the same format as in Polybench/C.
+
+        If a different format is to be used, this method can be overridden.
+        """
+        raise NotImplementedError('Custom array print not implemented')
+
+    @abstractmethod
+    def kernel(self, *args, **kwargs):
+        """Implements the kernel to be benchmarked."""
+        raise NotImplementedError('Kernel not implemented')
+
+    @abstractmethod
+    def run_benchmark(self):
+        """Implements the kernel to be benchmarked.
+
+        This method **MUST** be overridden by subclasses.
+
+        This method should declare the data structures required for running the kernel in a similar manner as done in
+        the main() function of Polybench/C.
+
+        :returns: a list of tuples. For each tuple (X, Y), X represents the name of the output and Y is the actual
+         output. The output(s) will be used by the print_array() method when required.
+        :rtype: list[tuple]
+        """
+        raise NotImplementedError('Kernel not implemented')
+
     def __create_array_rec(self, dimensions: int, sizes: list, initialization_value: int = 0) -> list:
         """Auxiliary recursive method for creating a new array based upon Python lists.
 
@@ -194,14 +249,14 @@ class PolyBench:
         """
         if dimensions == 1:
             # Just create a list with as many zeros as specified in sizes[0]
-            return [initialization_value for x in range(sizes[0])]
+            return [initialization_value for _ in range(sizes[0])]
 
         if len(sizes) == 1:
             # Generate lists of the same size per dimension
-            return [self.__create_array_rec(dimensions - 1, sizes, initialization_value) for x in range(sizes[0])]
+            return [self.__create_array_rec(dimensions - 1, sizes, initialization_value) for _ in range(sizes[0])]
         else:
             # Generate lists with unique sizes per dimension
-            return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for x in range(sizes[0])]
+            return [self.__create_array_rec(dimensions - 1, sizes[1:], initialization_value) for _ in range(sizes[0])]
 
     def create_array(self, dimensions: int, sizes: list, initialization_value: int = 0):
         """
@@ -282,22 +337,6 @@ class PolyBench:
         else:
             raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
 
-    def initialize_array(self, *args, **kwargs):
-        """Implements the array initialization.
-
-        Implement this method when requiring a special array initialization.
-        If an array is to be initialized with the same value for all of its elements, use the "initialization_value"
-        parameter of the create_array() method instead.
-        """
-        raise NotImplementedError('Initialize array not implemented')
-
-    def print_array_custom(self, array: list, dump_message: str = ''):
-        """Prints the benchmark array using the same format as in Polybench/C.
-
-        If a different format is to be used, this method can be overridden.
-        """
-        raise NotImplementedError('Custom array print not implemented')
-
     def print_array(self, array: list, native_style: bool = True, dump_message: str = ''):
         """
         Prints the benchmarked array.
@@ -354,7 +393,7 @@ class PolyBench:
         #
         # Perform post-benchmark actions
         #
-        self.print_instruments()
+        self.__print_instruments()
         if self.POLYBENCH_DUMP_ARRAYS:
             self.print_message('==BEGIN DUMP_ARRAYS==\n')
             for out in outputs:
@@ -370,38 +409,27 @@ class PolyBench:
             return {"POLYBENCH_PAPI": self.polybench_result}
         return {}
 
-    def run_benchmark(self):
-        """Implements the kernel to be benchmarked.
-
-        This method **MUST** be overridden by subclasses.
-
-        This method should declare the data structures required for running the kernel in a similar manner as done in
-        the main() function of Polybench/C.
-
-        :returns: a list of tuples. For each tuple (X, Y), X represents the name of the output and Y is the actual
-         output. The output(s) will be used by the print_array() method when required.
-        :rtype: list[tuple]
-        """
-        raise NotImplementedError('Kernel not implemented')
-
-    def start_instruments(self):
-        """Perform various actions before running the actual benchmark.
-        """
+    def time_kernel(self, *args, **kwargs):
         if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
+            # Simple time measurement
             self.__timer_start()
-        elif self.POLYBENCH_PAPI:
-            self.__prepare_instruments()
-            self.__papi_init()
-            self.__papi_start_counters()
-
-    def stop_instruments(self):
-        """Restore system state if it was previously modified by start_instruments()."""
-        if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
+            self.kernel(*args, **kwargs)
             self.__timer_stop()
         elif self.POLYBENCH_PAPI:
-            self.__papi_stop_counters()
+            # Measuring performance counters is a bit tricky. The API allows to monitor multiple counters at once, but
+            # that is not accurate so we need to measure each counter independently within a loop to ensure proper
+            # operation.
+            self.__prepare_instruments()
+            self.__papi_init()  # Initializes self.__papi_counters and self.__papi_available_counters
+            # Information for the following loop:
+            # * self.__papi_counters holds a list of available counter ids
+            # * self.__papi_counters_result holds the actual counter return values
+            for counter in self.__papi_counters:
+                papi_high.start_counters([counter])  # requires a list of counters
+                self.kernel(*args, **kwargs)
+                self.__papi_counters_result.extend(papi_high.stop_counters())  # returns a list of counter results
 
-    def print_instruments(self):
+    def __print_instruments(self):
         """Print the state of the instruments."""
         if self.POLYBENCH_TIME or self.POLYBENCH_GFLOPS:
             self.__timer_print()
@@ -415,10 +443,11 @@ class PolyBench:
             self.__linux_fifo_scheduler()
 
     def __timer_start(self):
-        self.__prepare_instruments()
         if not self.POLYBENCH_CYCLE_ACCURATE_TIMER:
+            self.__prepare_instruments()
             self.__timer_start_t = time()
         else:
+            self.__prepare_instruments()
             self.__timer_start_t = self._read_tsc()
 
     def __timer_stop(self):
@@ -496,12 +525,6 @@ class PolyBench:
                     break
             if not is_available:
                 print(f'WARNING: counter "{usr_counter}" not available.')
-
-    def __papi_start_counters(self):
-        papi_high.start_counters(self.__papi_counters)
-
-    def __papi_stop_counters(self):
-        self.__papi_counters_result = papi_high.stop_counters()
 
     def __papi_print(self):
         def papi_counter_names():
