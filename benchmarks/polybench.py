@@ -24,13 +24,12 @@ if system() != 'Linux':
 # PolyBench requirements
 #
 from abc import abstractmethod
-from benchmarks.polybench_classes import DataSetSize, ArrayImplementation
+from benchmarks.polybench_classes import ArrayImplementation, DataSetSize
 from benchmarks.polybench_classes import PolyBenchOptions, PolyBenchSpec
 
 #
 # Standard types and methods
 #
-from sys import stderr
 from time import time
 import os  # For controlling Linux scheduler
 
@@ -60,28 +59,6 @@ class PolyBench:
         - kernel()
         - print_array_custom()
     """
-
-    # Typical options
-    POLYBENCH_TIME = False                     # Output execution time
-    POLYBENCH_DUMP_ARRAYS = False              # Dump live-out arrays
-
-    # Options that may lead to better performance
-    POLYBENCH_PADDING_FACTOR = 0               # Pad all dimensions of lists by this value
-
-    # Timing/profiling options
-    POLYBENCH_PAPI = False                     # Turn on PAPI timing
-    POLYBENCH_CACHE_SIZE_KB = 32770            # Cache size to flush, in KiB (32+ MiB)
-    POLYBENCH_NO_FLUSH_CACHE = False           # Don't flush the cache before calling the timer
-    POLYBENCH_CYCLE_ACCURATE_TIMER = False     # Use Time Stamp Counter
-    POLYBENCH_LINUX_FIFO_SCHEDULER = False     # Use FIFO scheduler (must run as root)
-
-    # Other options (not present in the README file)
-    POLYBENCH_DUMP_TARGET = stderr             # Dump user messages into stderr, as in Polybench/C
-    POLYBENCH_GFLOPS = False
-    POLYBENCH_PAPI_VERBOSE = False
-
-    # Custom PolyBench/Python options
-    POLYBENCH_FLATTEN_LISTS = False
 
     # Timing counters
     __polybench_program_total_flops = 0
@@ -152,12 +129,11 @@ class PolyBench:
             self.POLYBENCH_GFLOPS = options.POLYBENCH_GFLOPS
             self.POLYBENCH_PAPI_VERBOSE = options.POLYBENCH_PAPI_VERBOSE
 
-            # The following option is checked for preventing circular references with polybench_options
-            if options.POLYBENCH_DATASET_SIZE is not None:
-                self.DATASET_SIZE = options.POLYBENCH_DATASET_SIZE
+            # Redefine POLYBENCH_DATASET_SIZE for use in benchmarks as DATASET_SIZE
+            self.DATASET_SIZE = options.POLYBENCH_DATASET_SIZE
 
             # PolyBench/Python options
-            self.ARRAY_IMPLEMENTATION = options.POLYBENCH_ARRAY_IMPLEMENTATION
+            self.POLYBENCH_ARRAY_IMPLEMENTATION = options.POLYBENCH_ARRAY_IMPLEMENTATION
 
             #
             # Define in-line C functions for interpreters different than CPython
@@ -322,20 +298,20 @@ class PolyBench:
 
         # At this point it is safe to say that both dimensions and sizes are valid.
         # Use the appropriate "array" implementation.
-        if self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
+        if self.POLYBENCH_ARRAY_IMPLEMENTATION == ArrayImplementation.LIST:
             return self.__create_array_rec(dimensions, new_sizes, initialization_value)
-        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
+        elif self.POLYBENCH_ARRAY_IMPLEMENTATION == ArrayImplementation.LIST_FLATTENED:
             # A flattened list only has one dimension, whose value is the product of all dimensions.
             dimension_size = 1
             for dim_size in new_sizes:
                 dimension_size *= dim_size
             return self.__create_array_rec(1, [dimension_size], initialization_value)
-        elif self.ARRAY_IMPLEMENTATION == ArrayImplementation.NUMPY:
+        elif self.POLYBENCH_ARRAY_IMPLEMENTATION == ArrayImplementation.NUMPY:
             # Create an auxiliary list for creating an initialized NumPy array.
             list_array = self.__create_array_rec(dimensions, new_sizes, initialization_value)
             return numpy.array(list_array, self.DATA_TYPE)
         else:
-            raise NotImplementedError(f'Unknown internal array implementation: "{self.ARRAY_IMPLEMENTATION}"')
+            raise NotImplementedError(f'Unknown internal array implementation: "{self.POLYBENCH_ARRAY_IMPLEMENTATION}"')
 
     def print_array(self, array: list, native_style: bool = True, dump_message: str = ''):
         """
@@ -371,20 +347,15 @@ class PolyBench:
         self.print_message(self.DATA_PRINT_MODIFIER.format(value))
 
     def run(self) -> dict:
-        """Prepares the environment for running a benchmark, executes it and shows the result.
+        """Runs a benchmark and returns its results.
 
         **DO NOT OVERRIDE THIS METHOD UNLESS YOU KNOWN WHAT YOU ARE DOING!**
 
-        This method is akin to the main() function found in Polybench/C.
-        Common tasks for the benchmarks are performed by this method such as:
-            - Preparing instruments (control process priority, CPU scheduler [when available], etc.)
-            - Performing timing operations
-            - Print the benchmark's output (timing, kernel, etc.)
+        This method is used for performing aditional tasks after the benchmark is run.
+        One of the tasks is to control the print-out of benchmark data and the benchmarking results.
+        This method is also responsible for returning the benchmarking results when either POLYBENCH_TIME or
+        POLYBENCH_PAPI is enabled.
         """
-        #
-        # Perform pre-benchmark actions.
-        #
-
         #
         # Run the benchmark
         #
@@ -419,8 +390,8 @@ class PolyBench:
             # Measuring performance counters is a bit tricky. The API allows to monitor multiple counters at once, but
             # that is not accurate so we need to measure each counter independently within a loop to ensure proper
             # operation.
-            self.__prepare_instruments()
             self.__papi_init()  # Initializes self.__papi_counters and self.__papi_available_counters
+            self.__prepare_instruments()
             # Information for the following loop:
             # * self.__papi_counters holds a list of available counter ids
             # * self.__papi_counters_result holds the actual counter return values
@@ -428,6 +399,10 @@ class PolyBench:
                 papi_high.start_counters([counter])  # requires a list of counters
                 self.kernel(*args, **kwargs)
                 self.__papi_counters_result.extend(papi_high.stop_counters())  # returns a list of counter results
+
+        # Something like stop_instruments()
+        if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
+            self.__linux_standard_scheduler()
 
     def __print_instruments(self):
         """Print the state of the instruments."""
@@ -455,8 +430,6 @@ class PolyBench:
             self.__timer_stop_t = time()
         else:
             self.__timer_stop_t = self._read_tsc()
-        if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
-            self.__linux_standard_scheduler()
 
     def __timer_print(self):
         self.polybench_result = self.__timer_stop_t - self.__timer_start_t
@@ -486,12 +459,13 @@ class PolyBench:
             from inspect import getmembers
             return getmembers(papi_events, is_number)
 
-        def parse_counters_file():
+        def parse_counters_file() -> list:
             result = []
             with open('papi_counters.list') as f:
                 contents = f.read()
+                # Remove both empty lines and whitespaces
                 lines = contents.splitlines()
-                lines = [line.strip() for line in lines]  # Lines without single line comments
+                lines = [line.strip() for line in lines]
 
                 is_in_comment = False
                 for line in lines:
@@ -555,7 +529,7 @@ class PolyBench:
     def __flush_cache(self):
         """Thrashes the cache by generating a very large data structure."""
         cs = int(self.POLYBENCH_CACHE_SIZE_KB * 1024 / 8)  # divided by sizeof(double)
-        flush = [0.0 for x in range(cs)]  # 0.0 forces data type to be a float
+        flush = [0.0 for _ in range(cs)]  # 0.0 forces data type to be a float
         tmp = 0.0
         for i in range(cs):
             tmp += flush[i]
@@ -574,4 +548,3 @@ class PolyBench:
             os.sched_setscheduler(0, os.SCHED_OTHER, param)
         else:
             self.__native_linux_standard_scheduler()
-
