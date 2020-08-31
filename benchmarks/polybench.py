@@ -395,10 +395,17 @@ class PolyBench:
             # Information for the following loop:
             # * self.__papi_counters holds a list of available counter ids
             # * self.__papi_counters_result holds the actual counter return values
+            i = 0
             for counter in self.__papi_counters:
+                if i > 0:
+                    self.initialize_array(*args, **kwargs)  # force initialization
+                i += 1
                 papi_high.start_counters([counter])  # requires a list of counters
                 self.kernel(*args, **kwargs)
                 self.__papi_counters_result.extend(papi_high.stop_counters())  # returns a list of counter results
+        else:
+            # Default kernel run
+            self.kernel(*args, **kwargs)
 
         # Something like stop_instruments()
         if self.POLYBENCH_LINUX_FIFO_SCHEDULER:
@@ -482,6 +489,8 @@ class PolyBench:
                             is_in_comment = False
             return result
 
+        self.__papi_counters.clear()
+        self.__papi_counters_result.clear()
         self.__papi_available_counters = get_available_counters()
         user_counters = parse_counters_file()
 
