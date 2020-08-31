@@ -146,7 +146,7 @@ class _StrategyListFlattened(Atax):
 class _StrategyNumPy(Atax):
 
     def __new__(cls, options: PolyBenchOptions, parameters: PolyBenchSpec):
-        return object.__new__(_StrategyList)
+        return object.__new__(_StrategyNumPy)
 
     def __init__(self, options: PolyBenchOptions, parameters: PolyBenchSpec):
         super().__init__(options, parameters)
