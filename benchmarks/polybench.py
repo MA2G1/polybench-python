@@ -390,12 +390,12 @@ class PolyBench:
             # Measuring performance counters is a bit tricky. The API allows to monitor multiple counters at once, but
             # that is not accurate so we need to measure each counter independently within a loop to ensure proper
             # operation.
+            i = 0
             self.__papi_init()  # Initializes self.__papi_counters and self.__papi_available_counters
             self.__prepare_instruments()
             # Information for the following loop:
             # * self.__papi_counters holds a list of available counter ids
             # * self.__papi_counters_result holds the actual counter return values
-            i = 0
             for counter in self.__papi_counters:
                 if i > 0:
                     self.initialize_array(*args, **kwargs)  # force initialization
@@ -405,6 +405,7 @@ class PolyBench:
                 self.__papi_counters_result.extend(papi_high.stop_counters())  # returns a list of counter results
         else:
             # Default kernel run
+            self.__prepare_instruments()
             self.kernel(*args, **kwargs)
 
         # Something like stop_instruments()
